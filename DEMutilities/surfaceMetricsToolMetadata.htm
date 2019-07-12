@@ -1,0 +1,525 @@
+<html xml:lang="en" lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:gmd="http://www.isotc211.org/2005/gmd" xmlns:res="http://www.esri.com/metadata/res/">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <style type="text/css" id="internalStyle" xmlns="" xmlns:esri="http://www.esri.com/metadata/" xmlns:msxsl="urn:schemas-microsoft-com:xslt">
+    body {
+      font-family: "Segoe UI", Arial, Sans-serif;
+      font-size: 10pt;
+      color: #4C4C4C;
+      background-color: #FFFFFF;
+      margin: 6px, 6px, 6px, 6px;
+    }
+    h1 {
+      font-family: "Segoe UI Light", "Segoe UI", Arial, Sans-serif;
+      font-size: 14pt;
+      color: #0079C1;
+      margin: 0px 0px 8px 0px;
+    }
+    h3 {
+      font-family: "Segoe UI semibold", "Segoe UI", Arial, Sans-serif;
+      font-size: 12pt;
+      margin: 10px 0px 4px 0px;
+    }
+    span.ContentHeader {
+      font-family: "Segoe UI semibold", "Segoe UI", Arial, Sans-serif;
+      font-size: 12pt;
+    }
+    span.SubContentHeader {
+      font-family: "Segoe UI", Arial, Sans-serif;
+      font-size: 10pt;
+      color: #6D6C70;
+    }
+    span.ElementLabel {
+      font-family: "Segoe UI", Arial, Sans-serif;
+      font-size: 10pt;
+      color: #929497;
+    }
+    div {
+      margin: 0px 0px 0px 0px;
+    }
+    p {
+      margin: 0px 0px 6px 0px;
+    }
+    .center {
+      text-align: center;
+    }
+    img {
+      margin: 8px 0px 8px 0px;
+    }
+    img.summary {
+      width: 210px;
+      height: 133px;
+      margin: 8px 0px 8px 0px;
+    }
+    img.center {
+      text-align: center;
+      display: block;
+    }
+    img.gp {
+      width: auto;
+    }
+    .noThumbnail {
+      #color: rgb(70%, 70%, 70%);
+      color: #A6A8AB;
+      border-width: 1px;
+      border-style: solid;
+      #color: rgb(70%, 70%, 70%);
+      border-color: #A6A8AB;
+      padding: 3em 3em;
+      position: relative;
+      text-align: center;
+      width: 210px;
+      height: 140px;
+      margin: 8px 0px 8px 0px;
+    }
+    .noContent {
+      #color: rgb(70%, 70%, 70%);
+      color: #A6A8AB;
+    }
+    h3 a.expander:link {
+      color: #4C4C4C;
+      font-weight: normal;
+      text-decoration: none;
+    }
+    h3 a.expander:visited {
+      color: #0079C1;
+      text-decoration: none;
+    }
+    h3 a.expander:link:hover, h3 a.expander:visited:hover {
+      color: #0079C1;
+      text-decoration: none;
+    }
+    a.expander:link {
+      color: #323232;
+      font-weight: normal;
+      text-decoration: none;
+    }
+    a.expander:visited {
+      color: #0079C1;
+      text-decoration: none;
+    }
+    a.expander:link:hover, a.expander:visited:hover {
+      color: #0079C1;
+      text-decoration: none;
+    }
+    a:link {
+      color: #5A9359;
+      font-weight: normal;
+      text-decoration: none;
+    }
+    a:visited {
+      color: #5A9359;
+      text-decoration: none;
+    }
+    a:link:hover, a:visited:hover {
+      color: #257824;
+      text-decoration: underline;
+    }
+    div.hide {
+      display: none;
+      margin: 0px 0px 20px 0px;
+      color: #6D6C70;
+    }
+    div.show {
+      display: block;
+      margin: 0px 0px 20px 0px;
+    }
+    span.hide {
+      display: none;
+      font-family: Times;
+    }
+    span.show {
+      display: inline-block;
+      font-style: normal;
+      font-family: Times;
+    }
+    table {
+      margin: 0px 0px 0px 0px;
+      padding: 0px 0px 8px 0px;
+      border-collapse:collapse;
+      font-size: 10pt;
+    }
+    th {
+      font-family: "Segoe UI Semibold", Arial, Sans-serif;
+      color: #4C4C4C;
+      /* color: #6C6D70 for dialog/python reference heading; */
+      text-align: left;
+      vertical-align: bottom;
+      border-bottom: 1px solid #4C4C4C;
+    }
+    td {
+      text-align: left;
+      vertical-align: top;
+    }
+    td.description {
+      vertical-align: center;
+    }
+    td.gp {
+      padding: 8px 8px 8px 8px;
+      border-bottom: 1px solid #4C4C4C;
+    }
+    ul {
+      margin: 0px 0px 0px 10px;
+      padding: 0px 0px 0px 10px;
+    }
+    li {
+      margin: 0px 0px 0px 0px;
+      padding: 0px 0px 0px 10px;
+    }
+    ul ul {
+      list-style-type: square;
+    }
+    pre.wrap {
+      width: 99%;
+      font-family: "Segoe UI", Arial, Sans-serif;
+      font-size: 10pt;
+      margin: 0px 0px 0px 0px;
+      white-space: pre-wrap;       /* css-3 */
+      white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+      white-space: -pre-wrap;      /* Opera 4-6 */
+      white-space: -o-pre-wrap;    /* Opera 7 */
+      word-wrap: break-word;       /* Internet Explorer 5.5+ */
+    }
+    pre.wrap p {
+      padding-bottom: 1em;
+    }
+    pre.wrap li {
+      padding-bottom: 1em;
+    }
+    pre.wrap br {
+      display: block;
+    }
+    pre.gp {
+      font-family: Courier New, Courier, monospace;
+    }
+    .gpcode {
+      border: 1px dashed #ACC6D8;
+      padding: 10px;
+      background-color:#EEEEEE;
+      height: auto;
+      overflow: scroll; 
+      width: 98%;
+    }
+    .code {
+      font-family: monospace;
+    }
+
+    p.gp {
+      margin: 7px 0px 7px 0px;
+    }
+    dl {
+      margin: 0px 0px 0px 0px;
+    }
+    dt {
+      margin: 0px 0px 0px 15px;
+      clear: left;
+    }
+    dd {
+      margin: 0px 0px 0px 15px;
+      clear: left;
+    }
+  </style>
+  </head>
+  <body oncontextmenu="return true">
+    <h1 xmlns="" xmlns:esri="http://www.esri.com/metadata/" xmlns:msxsl="urn:schemas-microsoft-com:xslt">Surface Metrics</h1>
+    <p xmlns="" xmlns:esri="http://www.esri.com/metadata/" xmlns:msxsl="urn:schemas-microsoft-com:xslt">
+      <span class="ContentHeader">Title</span> 
+				Surface Metrics</p>
+    <div xmlns="" xmlns:esri="http://www.esri.com/metadata/" xmlns:msxsl="urn:schemas-microsoft-com:xslt">
+      <h3>Description</h3>
+      <p>
+        <pre class="wrap">
+          <DIV STYLE="text-align:Left;">
+            <DIV>
+              <DIV>
+                <P>
+                  <SPAN>Calculate elevation derivatives over a specified length scale.</SPAN>
+                </P>
+              </DIV>
+            </DIV>
+          </DIV>
+        </pre>
+      </p>
+    </div>
+    <div xmlns="" xmlns:esri="http://www.esri.com/metadata/" xmlns:msxsl="urn:schemas-microsoft-com:xslt">
+      <h3>Usage</h3>
+      <p>
+        <span class="noContent">There is no usage for this tool.</span>
+      </p>
+    </div>
+    <div xmlns="" xmlns:esri="http://www.esri.com/metadata/" xmlns:msxsl="urn:schemas-microsoft-com:xslt">
+      <h3>Syntax</h3>
+      <p>SurfaceMetrics_ (DEM, Length Scale, {Gradient}, {PlanCurv}, {ProfCurv}, {ElevDev}, {downSample}, {sampleInterval}, {Scratch}, {executablePath}) <br /><br /></p>
+      <table>
+        <tr>
+          <th width="30%">Parameter</th>
+          <th width="50%">Explanation</th>
+          <th width="20%">Data Type</th>
+        </tr>
+        <tr>
+          <td class="gp">DEM</td>
+          <td class="gp" align="left">
+            <span class="SubContentHeader">Dialog Reference</span>
+            <br />
+            <DIV STYLE="text-align:Left;">
+              <DIV>
+                <DIV>
+                  <P>
+                    <SPAN>Input digital elevation model. This can be any ArcGIS-recognized raster type. The elevation derivatives are calculated using compiled Fortran programs (makegrids and localRelief) that read a binary floating point raster. If the specified DEM is of another format, the script should convert it to the flt format.</SPAN>
+                  </P>
+                </DIV>
+              </DIV>
+            </DIV>
+            <p>
+              <span class="noContent">There is no python reference for this parameter.</span>
+            </p>
+          </td>
+          <td class="gp" align="left">Raster Dataset</td>
+        </tr>
+        <tr>
+          <td class="gp">Length Scale</td>
+          <td class="gp" align="left">
+            <span class="SubContentHeader">Dialog Reference</span>
+            <br />
+            <DIV STYLE="text-align:Left;">
+              <DIV>
+                <DIV>
+                  <P>
+                    <SPAN>Length in meters over which to calculate the topographic attributes.</SPAN>
+                  </P>
+                </DIV>
+              </DIV>
+            </DIV>
+            <p>
+              <span class="noContent">There is no python reference for this parameter.</span>
+            </p>
+          </td>
+          <td class="gp" align="left">String</td>
+        </tr>
+        <tr>
+          <td class="gp">Gradient (Optional) </td>
+          <td class="gp" align="left">
+            <span class="SubContentHeader">Dialog Reference</span>
+            <br />
+            <DIV STYLE="text-align:Left;">
+              <DIV>
+                <DIV>
+                  <P>
+                    <SPAN>Surface gradient (rise/run). Based on algorithm described in </SPAN>
+                    <SPAN STYLE="font-size:12pt">
+                      <SPAN>Zevenbergen, L. W. and C. R. Thorne (1987). "Quantitative analysis of land surface topography." </SPAN>
+                    </SPAN>
+                    <SPAN>
+                      <SPAN>Earth Surface Processes and Landforms</SPAN>
+                    </SPAN>
+                    <SPAN STYLE="font-size:12pt">
+                      <SPAN> </SPAN>
+                    </SPAN>
+                    <SPAN STYLE="font-weight:bold;font-size:12pt">
+                      <SPAN>12</SPAN>
+                    </SPAN>
+                    <SPAN STYLE="font-size:12pt">: 47-56, as modified by </SPAN>
+                    <SPAN STYLE="font-size:12pt">
+                      <SPAN>Shi, X., et al. (2007). "An experiment using a circular neighborhood to calculate slope gradient from a DEM." </SPAN>
+                    </SPAN>
+                    <SPAN>
+                      <SPAN>Photogrammetric Engineering &amp; Remote Sensing</SPAN>
+                    </SPAN>
+                    <SPAN STYLE="font-size:12pt">
+                      <SPAN> </SPAN>
+                    </SPAN>
+                    <SPAN STYLE="font-weight:bold;font-size:12pt">
+                      <SPAN>73</SPAN>
+                    </SPAN>
+                    <SPAN STYLE="font-size:12pt">
+                      <SPAN>(2): 143-154.. </SPAN>
+                    </SPAN>
+                  </P>
+                </DIV>
+              </DIV>
+            </DIV>
+            <p>
+              <span class="noContent">There is no python reference for this parameter.</span>
+            </p>
+          </td>
+          <td class="gp" align="left">Boolean</td>
+        </tr>
+        <tr>
+          <td class="gp">PlanCurv (Optional) </td>
+          <td class="gp" align="left">
+            <span class="SubContentHeader">Dialog Reference</span>
+            <br />
+            <DIV STYLE="text-align:Left;">
+              <DIV>
+                <DIV>
+                  <P>
+                    <SPAN>A measure of curvature along contour lines. Negative values indicate convergent topography, positive values indicate divergent topography. Based on algorithms described in Zevenbergen &amp; Thorne (1987) and Shi et al., (2007).</SPAN>
+                  </P>
+                </DIV>
+              </DIV>
+            </DIV>
+            <p>
+              <span class="noContent">There is no python reference for this parameter.</span>
+            </p>
+          </td>
+          <td class="gp" align="left">Boolean</td>
+        </tr>
+        <tr>
+          <td class="gp">ProfCurv (Optional) </td>
+          <td class="gp" align="left">
+            <span class="SubContentHeader">Dialog Reference</span>
+            <br />
+            <DIV STYLE="text-align:Left;">
+              <DIV>
+                <DIV>
+                  <P>
+                    <SPAN>A measure of changes in slope along the fall line (direction of maximum slope). Negative values indicate decreasing slope; positive values indicate increasing slope. Saturated return flow, where shallow groundwater tends to exfiltrate onto the surface, tends to occur in areas of negative profile curvature.</SPAN>
+                  </P>
+                </DIV>
+              </DIV>
+            </DIV>
+            <p>
+              <span class="noContent">There is no python reference for this parameter.</span>
+            </p>
+          </td>
+          <td class="gp" align="left">Boolean</td>
+        </tr>
+        <tr>
+          <td class="gp">ElevDev (Optional) </td>
+          <td class="gp" align="left">
+            <span class="SubContentHeader">Dialog Reference</span>
+            <br />
+            <DIV STYLE="text-align:Left;">
+              <DIV>
+                <DIV>
+                  <P>
+                    <SPAN>Local deviation from mean elevation: an indicator of locally high or low topography. Defined as (z-zmean)/sd, where z is elevation at a point (DEM cell), zmean is mean elevation over a circle with diameter equal to the specified length scale, and sd is standard deviation of elevation within that circle. See </SPAN>
+                    <SPAN STYLE="font-size:12pt">
+                      <SPAN>Wilson, J. P. and J. C. Gallant, Eds. (2000). </SPAN>
+                    </SPAN>
+                    <SPAN>
+                      <SPAN>Terrain Analysis. Principles and Applications</SPAN>
+                    </SPAN>
+                    <SPAN STYLE="font-size:12pt">
+                      <SPAN>. New York, John Wiley &amp; Sons.</SPAN>
+                    </SPAN>
+                  </P>
+                </DIV>
+              </DIV>
+            </DIV>
+            <p>
+              <span class="noContent">There is no python reference for this parameter.</span>
+            </p>
+          </td>
+          <td class="gp" align="left">Boolean</td>
+        </tr>
+        <tr>
+          <td class="gp">downSample (Optional) </td>
+          <td class="gp" align="left">
+            <span class="SubContentHeader">Dialog Reference</span>
+            <br />
+            <DIV STYLE="text-align:Left;">
+              <DIV>
+                <DIV>
+                  <P>
+                    <SPAN>ElevDev is computationally intensive so building the ElevDev raster can take a very long time. You can dramatically reduce the time required by down-sampling the DEM and by calculating values only at regularly spaced DEM points and interpolating. The downSample variable specifies the number of DEM cells to downsample. A value of 1 produces no down sampling; 2 builds a new DEM using every other cell; 3 builds a new DEM using every three cells, etc.</SPAN>
+                  </P>
+                </DIV>
+              </DIV>
+            </DIV>
+            <p>
+              <span class="noContent">There is no python reference for this parameter.</span>
+            </p>
+          </td>
+          <td class="gp" align="left">String</td>
+        </tr>
+        <tr>
+          <td class="gp">sampleInterval (Optional) </td>
+          <td class="gp" align="left">
+            <span class="SubContentHeader">Dialog Reference</span>
+            <br />
+            <DIV STYLE="text-align:Left;">
+              <DIV>
+                <P>
+                  <SPAN>For the down-sampled DEM, calculate ElevDev over a subset of cells and interpolate for intervening cells. A sample interval value of 1 calculates ElevDev at every cell, a value of 2 calculates ElevDev at every other cell, etc.</SPAN>
+                </P>
+              </DIV>
+            </DIV>
+            <p>
+              <span class="noContent">There is no python reference for this parameter.</span>
+            </p>
+          </td>
+          <td class="gp" align="left">String</td>
+        </tr>
+        <tr>
+          <td class="gp">Scratch (Optional) </td>
+          <td class="gp" align="left">
+            <span class="SubContentHeader">Dialog Reference</span>
+            <br />
+            <DIV STYLE="text-align:Left;">
+              <DIV>
+                <P>
+                  <SPAN>Folder for hard-disk work space used during calculation of elevation derivatives. If you have a fast solid-state drive, you can specify a scratch directory there to help reduce run time. If no scratch folder is given, the current workspace is used.</SPAN>
+                </P>
+              </DIV>
+            </DIV>
+            <p>
+              <span class="noContent">There is no python reference for this parameter.</span>
+            </p>
+          </td>
+          <td class="gp" align="left">Folder</td>
+        </tr>
+        <tr>
+          <td class="gp">executablePath (Optional) </td>
+          <td class="gp" align="left">
+            <span class="SubContentHeader">Dialog Reference</span>
+            <br />
+            <DIV STYLE="text-align:Left;">
+              <DIV>
+                <DIV>
+                  <P>
+                    <SPAN>This tool uses separate compiled programs: makegrids.exe and localRelief.exe. If the script cannot find them in the current workspace, you need to specify their location here.</SPAN>
+                  </P>
+                </DIV>
+              </DIV>
+            </DIV>
+            <p>
+              <span class="noContent">There is no python reference for this parameter.</span>
+            </p>
+          </td>
+          <td class="gp" align="left">Folder</td>
+        </tr>
+      </table>
+    </div>
+    <div xmlns="" xmlns:esri="http://www.esri.com/metadata/" xmlns:msxsl="urn:schemas-microsoft-com:xslt">
+      <h3>Code Samples</h3>
+      <div class="gpItemInfo">
+        <p>
+          <span class="noContent">There are no code samples for this tool.</span>
+        </p>
+      </div>
+    </div>
+    <div xmlns="" xmlns:esri="http://www.esri.com/metadata/" xmlns:msxsl="urn:schemas-microsoft-com:xslt">
+      <h3>Tags</h3>
+      <p>DEM, elevation derivative, local relief</p>
+    </div>
+    <div xmlns="" xmlns:esri="http://www.esri.com/metadata/" xmlns:msxsl="urn:schemas-microsoft-com:xslt">
+      <h3>Credits</h3>
+      <p>
+        <span class="noContent">There are no credits for this item.</span>
+      </p>
+    </div>
+    <div xmlns="" xmlns:esri="http://www.esri.com/metadata/" xmlns:msxsl="urn:schemas-microsoft-com:xslt">
+      <h3>Use limitations</h3>
+      <p>
+        <span class="noContent">There are no access and use limitations for this item.</span>
+      </p>
+    </div>
+    <br />
+    <p>
+      <i>
+        <span class="noContent">You are currently using the Item Description metadata style. Change your metadata style in the Options dialog box to see additional metadata content.</span>
+      </i>
+    </p>
+  </body>
+</html>
