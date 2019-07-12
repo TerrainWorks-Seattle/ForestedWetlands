@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<metadata>
+	<idinfo>
+		<citation>
+			<citeinfo>
+				<title>Run Random Forest</title>
+			</citeinfo>
+		</citation>
+		<keywords>
+			<theme>
+				<themekt>None</themekt>
+				<themekey>Random forest</themekey>
+				<themekey>wetland</themekey>
+			</theme>
+		</keywords>
+		<accconst>None</accconst>
+		<useconst>None</useconst>
+	</idinfo>
+	<distinfo>
+		<distliab>See access and use constraints information.</distliab>
+		<stdorder>
+			<digform>
+				<digtinfo>
+					<formname>ArcToolbox Tool</formname>
+				</digtinfo>
+			</digform>
+		</stdorder>
+	</distinfo>
+	<metainfo>
+		<metd>20190630</metd>
+		<metstdn>FGDC Content Standard for Digital Geospatial Metadata</metstdn>
+		<metstdv>FGDC-STD-001-1998</metstdv>
+		<mettc>local time</mettc>
+	</metainfo>
+</metadata>
