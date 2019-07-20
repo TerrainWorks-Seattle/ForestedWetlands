@@ -1,2 +1,3 @@
-# ForestedWetlands
-Code for building raster files of elevation derivatives, python and R scripts for using these rasters for building and applying random forest models of wetland presence/absence in ArcGIS Pro
+# Forested Wetlands
+This repository contains programs for building raster files of elevation derivatives along with python and R scripts for using those rasters to build and apply random forest models of wetland presence/absence in ArcGIS Pro. These methods were developed as part of a wetland mapping project funded by the Cooperative Monitoring, Evaluation, and Research (CMER) Committee of the Washington Forest Practices Board and overseen by the Wetland Scientific Advisory Group (WetSAG). 
+To use these tools with ArcGIS Pro, click on the download button to save the contents of this repository to your hard drive. The file Wetland_Tools_for_ArcGIS.pdf contains instructions for installing and running the tools.
