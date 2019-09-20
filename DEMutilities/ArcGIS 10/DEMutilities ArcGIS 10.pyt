@@ -8,10 +8,13 @@
  Description: A set of tools for working with DEMs
 ----------------------------------------------------------------------------------'''
 import arcpy
-import netstream
 import os
 import subprocess
 import time
+import sys
+
+sys.path.insert(1, os.path.join(sys.path[0], '..'))
+import netstream
 
 reload(netstream)
 
