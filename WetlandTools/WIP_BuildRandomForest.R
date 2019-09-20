@@ -13,54 +13,72 @@ tool_exec<- function(in_params, out_params){
     install.packages("rgdal", quiet = TRUE)
   if(!requireNamespace("randomForest", quietly = TRUE))
     install.packages("randomforest", quiet = TRUE)
+  if(!requireNamespace("foreach", quietly = TRUE))
+    install.packages("foreach", quiet = TRUE)
+  if(!requireNamespace("doParallel", quietly = TRUE))
+    install.packages("doParallel", quiet = TRUE)
   
   require(raster)
   require(sp)
   require(rgdal)
   require(randomForest)
   
-  # Extract point data from rasters without breaking memory limits
-  extractInParts <- function(rasters, points) {
-    if (canProcessInMemory(rasters)) {
-      m <- raster::extract(rasters, points, method='bilinear')
+    # Extract point data from rasters without breaking memory limits
+    extractInParts <- function(rasters, points) {
+      # if (canProcessInMemory(rasters)) {
+      #   m <- raster::extract(rasters, points, method='bilinear')
+      #   return(m)
+      # } else {
+        # Initialize an empty result matrix
+        m <- matrix(0, nrow=nrow(points), ncol=nlayers(rasters))
+      # }
+      
+      bs <- blockSize(rasters)
+      
+      # Extract point values from each block
+      for (i in 1:bs$n) {
+        arc.progress_label(paste0("Extracting Data...", ceiling(100*(i/bs$n)), "%"))
+        bStart <- bs$row[i]
+        bLen <- bs$nrows[i]
+        bEnd <- bStart+bLen
+        s <- suppressWarnings(raster::extract(crop(rasters, extent(rasters, bStart, bEnd, 1, ncol(rasters))), points, method='bilinear'))
+        s[is.na(s)]<-0
+        m = m + s
+      }
+      arc.progress_label(paste0("Extracting Data...", 100, "%"))
+      m [m == 0] <- NA
       return(m)
-    } else {
-      # Initialize an empty result matrix
-      m <- matrix(0, nrow=nrow(points), ncol=nlayers(rasters))
     }
     
-    cat(paste("Stack Dimensions: ", nrow(rasters), "x", ncol(rasters), "x", nlayers(rasters), "\n"))
-    cat(paste("Rows per pass: "))
-    # Find maximum block size based on allocated memory
-    bs <- 1
-    placeholder <- raster(ncol=(ncol(rasters)*nlayers(rasters)), nrow=bs)
-    while (canProcessInMemory(placeholder, 10)) {
-      bs = bs*2
-      placeholder = raster(ncol=(ncol(rasters)*nlayers(rasters)), nrow=bs)
+    # Predict probabilities without breaking memory limits
+    predictInParts <- function(rasters, model, fname) {
+      # if (canProcessInMemory(rasters)) {
+      #   p <- predict(rasters, model, type="prob", filename=fname, format="GTiff", overwrite=TRUE)
+      #   return(p)
+      # } else {
+        # Initialize the output file
+        out <- raster(rasters)
+        out <- writeStart(out, filename=fname, overwrite=TRUE)
+      # }
+      
+      bs <- blockSize(rasters)
+      
+      # Extract point values from each block
+      for (i in 1:bs$n) {
+        arc.progress_label(paste0("Creating probability raster...", ceiling(100*(i/bs$n)), "%"))
+        bStart <- bs$row[i]
+        bLen <- bs$nrows[i]
+        bEnd <- bStart+bLen
+        c <- crop(rasters, extent(rasters, bStart, bEnd, 1, ncol(rasters)))
+        p <- predict(c, model, type="prob")
+        v <- values(p)
+        out <- writeValues(out, v, bStart)
+      }
+      out <- writeStop(out)
+      arc.progress_label(paste0("Creating probability raster...", 100, "%"))
+      out <- writeRaster(out, filename=fname, format="GTiff")
+      return(out)
     }
-    bs = bs/2
-    cat(paste(bs, "\n"))
-    
-    # Extract point values from each block
-    i <- 1
-    startTime <- Sys.time()
-    while (i+bs < nrow(rasters)) {
-      arc.progress_label(paste0("Extracting Data...", ceiling(100*(i/nrow(rasters))), "%"))
-      r <- i+bs
-      s <- suppressWarnings(raster::extract(crop(rasters, extent(rasters, i, r, 1, ncol(rasters))), points, method='bilinear'))
-      s[is.na(s)]<-0
-      m <- m + s
-      i = i+bs
-    }
-    arc.progress_label(paste0("Extracting Data...", ceiling(100*(i/nrow(rasters))), "%"))
-    rows <- nrow(rasters)
-    suppressWarnings(s <- raster::extract(crop(rasters, extent(rasters, i, r, 1, ncol(rasters))), points, method='bilinear'))
-    arc.progress_label(paste0("Extracting Data...", 100, "%"))
-    s[is.na(s)] <- 0
-    m <- m + s
-    m [m == 0] <- NA
-    return(m)
-  }
   
   ##################################################################################################### 
   ### Define input/output parameters
@@ -133,13 +151,13 @@ tool_exec<- function(in_params, out_params){
     names(training)[i] <- paste0("Raster",i-1)
   }
   
-  # Print summaries of the independent variable values for wetland and not-a-wetland points
-  #className <- in_params[[4]][1]
-  #print(paste0("Class ", className))
-  #print(summary(training[training$Class == in_params[[4]][1],]))
-  #className <- in_params[[5]][1]
-  #print(paste0("Class ", className))
-  #print(summary(training[training$Class == in_params[[5]][1],]))
+  #Print summaries of the independent variable values for wetland and not-a-wetland points
+  className <- in_params[[4]][1]
+  print(paste0("Class ", className))
+  print(summary(training[training$Class == in_params[[4]][1],]))
+  className <- in_params[[5]][1]
+  print(paste0("Class ", className))
+  print(summary(training[training$Class == in_params[[5]][1],]))
   
   #####################################################################################################
   ### Build Random Forest Model
@@ -168,7 +186,7 @@ tool_exec<- function(in_params, out_params){
   # Rename layer names in the rasterstack to match the column names in the data frame used to train the model 
     for (i in 1:nlayers(rasters)) {names(rasters)[i] <- paste0("Raster",i)}
     
-    predict(rasters, rfclass, type = "prob", filename = outputProbRaster, format = "GTiff")
+    predictInParts(rasters, rfclass, outputProbRaster)
     print(paste0("Created GeoTiff probability raster ",outputProbRaster[1]))
   }
   
