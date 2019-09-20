@@ -19,19 +19,24 @@ tool_exec<- function(in_params, out_params){
   require(rgdal)
   require(randomForest)
   
-  # Extract point data from rasters without breaking memory limits
+  ######################################################################################################
+  ### Functions used in this script
+  ######################################################################################################
+  
+  # Function to extract point data from rasters without breaking memory limits
   extractInParts <- function(rasters, points) {
+    # See if available memory is sufficient. If so, carry on... 
     if (canProcessInMemory(rasters)) {
       m <- raster::extract(rasters, points, method='bilinear')
       return(m)
     } else {
-      # Initialize an empty result matrix
+      # If not, initialize an empty result matrix and parse by rows
       m <- matrix(0, nrow=nrow(points), ncol=nlayers(rasters))
     }
     
     cat(paste("Stack Dimensions: ", nrow(rasters), "x", ncol(rasters), "x", nlayers(rasters), "\n"))
     cat(paste("Rows per pass: "))
-    # Find maximum block size based on allocated memory
+    # Find maximum block size (number of rows) based on available memory
     bs <- 1
     placeholder <- raster(ncol=(ncol(rasters)*nlayers(rasters)), nrow=bs)
     while (canProcessInMemory(placeholder, 10)) {
@@ -41,7 +46,7 @@ tool_exec<- function(in_params, out_params){
     bs = bs/2
     cat(paste(bs, "\n"))
     
-    # Extract point values from each block
+    # Extract point values from each block and append these to the result matrix
     i <- 1
     startTime <- Sys.time()
     while (i+bs < nrow(rasters)) {
@@ -100,7 +105,7 @@ tool_exec<- function(in_params, out_params){
 
   arc.progress_label("Extracting Data...")
   
-  # Find the raster values at the point locations
+  # Find the raster values at the point locations using the extractInParts function defined above
   pointValues <- extractInParts(rasters, points)
   
   arc.progress_label("Processing Data...")
