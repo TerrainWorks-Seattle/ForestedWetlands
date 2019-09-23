@@ -95,23 +95,6 @@ tool_exec<- function(in_params, out_params){
     # Close the cluster connection
     if (!is.na(numCores))
       stopCluster(cl)
-
-    #### Sequential Version (Old) ####
-    # # Extract point values from each block
-    # for (i in 1:bs$n) {
-    #   arc.progress_label(paste0("Extracting Data...", ceiling(100*(i/bs$n)), "%"))
-    #   
-    #   # Find the block's starting and ending rows
-    #   bStart <- bs$row[i]
-    #   bLen <- bs$nrows[i]
-    #   bEnd <- bStart+bLen
-    #   
-    #   # Extract the point values from the block
-    #   s <- suppressWarnings(raster::extract(crop(rasters, extent(rasters, bStart, bEnd, 1, ncol(rasters))), points, method='bilinear'))
-    #   
-    #   # Add the block's point values to the result matrix m, ignoring NA values
-    #   m = combineMatrices(s, m)
-    # }
     
     arc.progress_label(paste0("Extracting Data...", 100, "%"))
     return(result)
