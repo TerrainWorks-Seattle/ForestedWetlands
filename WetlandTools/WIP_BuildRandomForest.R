@@ -7,8 +7,8 @@ tool_exec<- function(in_params, out_params){
   
   if(!requireNamespace("raster", quietly = TRUE))
     install.packages("raster", quiet = TRUE)
-  if(!requireNamespace("sp", quitly = TRUE))
-    install.packages("sp", quite = TRUE)
+  if(!requireNamespace("sp", quietly = TRUE))
+    install.packages("sp", quiet = TRUE)
   if(!requireNamespace("rgdal", quietly = TRUE))
     install.packages("rgdal", quiet = TRUE)
   if(!requireNamespace("randomForest", quietly = TRUE))
@@ -18,6 +18,49 @@ tool_exec<- function(in_params, out_params){
   require(sp)
   require(rgdal)
   require(randomForest)
+  
+  # Extract point data from rasters without breaking memory limits
+  extractInParts <- function(rasters, points) {
+    if (canProcessInMemory(rasters)) {
+      m <- raster::extract(rasters, points, method='bilinear')
+      return(m)
+    } else {
+      # Initialize an empty result matrix
+      m <- matrix(0, nrow=nrow(points), ncol=nlayers(rasters))
+    }
+    
+    cat(paste("Stack Dimensions: ", nrow(rasters), "x", ncol(rasters), "x", nlayers(rasters), "\n"))
+    cat(paste("Rows per pass: "))
+    # Find maximum block size based on allocated memory
+    bs <- 1
+    placeholder <- raster(ncol=(ncol(rasters)*nlayers(rasters)), nrow=bs)
+    while (canProcessInMemory(placeholder, 10)) {
+      bs = bs*2
+      placeholder = raster(ncol=(ncol(rasters)*nlayers(rasters)), nrow=bs)
+    }
+    bs = bs/2
+    cat(paste(bs, "\n"))
+    
+    # Extract point values from each block
+    i <- 1
+    startTime <- Sys.time()
+    while (i+bs < nrow(rasters)) {
+      arc.progress_label(paste0("Extracting Data...", ceiling(100*(i/nrow(rasters))), "%"))
+      r <- i+bs
+      s <- suppressWarnings(raster::extract(crop(rasters, extent(rasters, i, r, 1, ncol(rasters))), points, method='bilinear'))
+      s[is.na(s)]<-0
+      m <- m + s
+      i = i+bs
+    }
+    arc.progress_label(paste0("Extracting Data...", ceiling(100*(i/nrow(rasters))), "%"))
+    rows <- nrow(rasters)
+    suppressWarnings(s <- raster::extract(crop(rasters, extent(rasters, i, r, 1, ncol(rasters))), points, method='bilinear'))
+    arc.progress_label(paste0("Extracting Data...", 100, "%"))
+    s[is.na(s)] <- 0
+    m <- m + s
+    m [m == 0] <- NA
+    return(m)
+  }
   
   ##################################################################################################### 
   ### Define input/output parameters
@@ -31,7 +74,7 @@ tool_exec<- function(in_params, out_params){
   modelName <- in_params[[7]]    # file name for model stored to disk in working directory. 
   #                                Model consists of two files, modelName.RFmodel and modelName.rasterList
   outputProbRaster <- out_params[[1]]
- 
+
   setwd(workingDir)
   cat(paste0("Current working directory: ", workingDir,"\n"))
   
@@ -54,22 +97,26 @@ tool_exec<- function(in_params, out_params){
   
   # Translate to a spatial dataset
   points <- arc.data2sp(allPoints)
+
+  arc.progress_label("Extracting Data...")
   
   # Find the raster values at the point locations
-  pointValues <- raster::extract(rasters, points, method='bilinear')
-
+  pointValues <- extractInParts(rasters, points)
+  
+  arc.progress_label("Processing Data...")
+  
   # Append the class values as the first column
   pointValues <- cbind(points[,1],pointValues)
-  
+
   # Convert to a data frame
   pointValues <- as.data.frame(pointValues)
-  
+
   # Keep only records with one of the requested input field (class) values
   pointValues <- pointValues[pointValues$Class == isWet[1]|pointValues$Class == notWet[1],]
-  
+
   # Eliminate rows with NA values
   pointValues <- na.omit(pointValues)
-  
+
   # Eliminate columns with coordinate values
   coords <- names(pointValues) %in% c("coords.x1","coords.x2")
   training <- pointValues[!coords]
