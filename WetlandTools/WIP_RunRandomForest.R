@@ -20,10 +20,144 @@ tool_exec<- function(in_params, out_params){
   if(!requireNamespace("randomForest", quietly = TRUE))
     install.packages("randomforest", quiet = TRUE)
   
+  # Packages for foreach/dopar method
+  if(!requireNamespace("parallel", quietly = TRUE))
+    install.packages("parallel", quiet = TRUE)
+  if(!requireNamespace("doParallel", quietly = TRUE))
+    install.packages("doParallel", quiet = TRUE)
+  if(!requireNamespace("foreach", quietly = TRUE))
+    install.packages("foreach", quiet = TRUE)
+  
   require(raster)
   require(sp)
   require(rgdal)
   require(randomForest)
+  require(parallel)
+  require(doParallel)
+  require(foreach)
+  
+  ##################################################################################################### 
+  ### Helper functions for point value extraction and probability raster calculation
+  #####################################################################################################
+  #### Helper for extract: Adds two matrices, ignoring NA values (treating them as 0) ####
+  combineMatrices <- function(a, b) {
+    combined <- ifelse(is.na(a),
+                       ifelse(is.na(b),
+                              NA,
+                              b),
+                       ifelse(is.na(b),
+                              a,
+                              a+b))
+    return(combined)
+  }
+  
+  #### Extracts point data from rasters without breaking memory limits ####
+  extractInParts <- function(rasters, points) {
+    library(doParallel)
+    library(parallel)
+    library(foreach)
+    
+    # Check if Raster* can fit entirely in memory
+    if (canProcessInMemory(rasters)) {
+      # Extract all point data at once
+      beginCluster()
+      result <- extract(rasters, points, method='bilinear')
+      stopCluster()
+      return(result)
+    }
+    
+    # Count the available cores on computer
+    numCores <- detectCores()
+    if (is.na(numCores)) {
+      # Number unknown, execute loop sequentially  #TODO: double check this functionality
+      registerDoSEQ()
+      
+    } else {
+      # Create and register cores to be used in parallel
+      cl <- makeCluster(numCores)
+      registerDoParallel(cl)
+      
+      # Load necessary libraries to each core in the cluster
+      clusterEvalQ(cl, {
+        library(raster)
+        library(arcgisbinding)
+        library(randomForest)
+      })
+    }
+    
+    # Find the suggested block size for processing
+    bs <- blockSize(rasters)
+    
+    # Extract point values from input rasters. Results -> the list of each iteration's resulting matrix
+    result <- foreach (i = 1:bs$n, .combine='combineMatrices') %dopar% {
+      arc.progress_label(paste0("Extracting Data...", ceiling(100*(i/bs$n)), "%"))
+      
+      # Find the block's starting and ending rows
+      bStart <- bs$row[i]
+      bLen <- bs$nrows[i]
+      bEnd <- bStart+bLen
+      
+      # Extract the point values from the block
+      s <- suppressWarnings(extract(crop(rasters, extent(rasters, bStart, bEnd, 1, ncol(rasters))), points, method='bilinear'))
+    }
+    
+    arc.progress_label(paste0("Extracting Data...", 100, "%"))
+    return(result)
+  }
+  
+  #### Predicts probabilities and creates raster without breaking memory limits ####
+  #predict(rasters, rfclass, type = "prob", filename = outProbRaster, format = "GTiff")
+  predictInParts <- function(rasters, model, fname) {
+    
+    # Create the cluster for clusterR to use
+    beginCluster()
+    
+    # Check if Raster* can fit entirely in memory
+    if (canProcessInMemory(rasters)) {
+      # Generate entire probability raster
+      p <- clusterR(rasters, predict, list(model, type="prob", filename=fname, format="GTiff", overwrite=TRUE))
+      return(p)
+      
+    } else {
+      # Initialize the output file to write probabilities to in parts
+      out <- raster(rasters)
+      out <- writeStart(out, filename=fname, format='GTiff', overwrite=TRUE)
+    }
+    
+    # Find the suggested block size for processing
+    bs <- blockSize(rasters)
+    
+    for (i in 1:bs$n) {
+      arc.progress_label(paste0("Creating probability raster...", ceiling(100*(i/bs$n)), "%"))
+      
+      # Calculate block row bounds
+      bStart <- bs$row[i]
+      bLen <- bs$nrows[i]
+      bEnd <- bStart+bLen
+      
+      # Crop raster to block size
+      c <- crop(rasters, extent(rasters, bStart, bEnd, 1, ncol(rasters)))
+      
+      # Apply the model to the cropped raster
+      p <- clusterR(c, predict, args=list(model, type="prob"))
+      
+      # Write the block's values to the output raster
+      v <- getValues(p)
+      out <- writeValues(out, v, bStart)
+    }
+    
+    # Stop writing and close the file
+    out <- writeStop(out)
+    
+    # Delete the cluster
+    endCluster()
+    
+    arc.progress_label(paste0("Creating probability raster...", 100, "%"))
+    return(out)
+  }
+  
+  #predict(rfclass, type = "response", newdata = newdata[,-1])
+  # Might not need a function for this one #
   
   ##################################################################################################### 
   ### Define input/output parameters
@@ -85,8 +219,9 @@ tool_exec<- function(in_params, out_params){
     points <- arc.data2sp(allPoints)
   
     # Find the raster values at the point locations
-    pointValues <- raster::extract(rasters, points, method='bilinear')
-  
+    #pointValues <- raster::extract(rasters, points, method='bilinear')  # TODO: Chunk/parallelize this line like in BRF.R (EASY)
+    pointValues <- extractInParts(rasters, points)
+    
     # Append the class values as the first column
     pointValues <- cbind(points[,1],pointValues)
   
@@ -110,16 +245,21 @@ tool_exec<- function(in_params, out_params){
     print(head(newdata))
     
     # Run model on these data
-    test <- predict(rfclass, type = "response", newdata = newdata[,-1])
+    test <- predict(rfclass, type = "response", newdata = newdata[,-1])  # TODO: Check if this needs to be partitioned
     print(table(test, newdata$Class))
   }
 
   # Build a probability raster, if requested
   if (!is.null(outProbRaster) && outProbRaster != "NA") {
-    arc.progress_label("Creating probability raster - this can take awhile...")    
-    predict(rasters, rfclass, type = "prob", filename = outProbRaster, format = "GTiff")
+    arc.progress_label("Creating probability raster - this can take a while...")
+    predictInParts(rasters, rfclass, outProbRaster)
+    #predict(rasters, rfclass, type = "prob", filename = outProbRaster, format = "GTiff")
     print(paste0("Created GeoTiff probability raster ",outProbRaster[1]))
   }
-
+  
+  # Close the cluster connection
+  if (!is.na(numCores))
+    stopCluster(cl)
+  
   return(out_params)
 }
