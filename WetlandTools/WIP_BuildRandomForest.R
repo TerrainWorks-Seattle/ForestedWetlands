@@ -234,13 +234,13 @@ tool_exec<- function(in_params, out_params){
   #####################################################################################################
   # Run the randomForest. 1st iteration.
   arc.progress_label("Building random forest...")  
-  #rfclass <- randomForest(training[,-1], as.factor(training$Class), ntree=200, importance=TRUE)
+  rfclass <- randomForest(training[,-1], as.factor(training$Class), ntree=200, importance=TRUE)
   
   #### Parallelization slowed down some trials ####
   # Build in parallel
-  rfclass <- foreach(ntree=rep(300, 4), .combine=combine, .packages='randomForest') %dopar% {
-    randomForest(training[,-1], as.factor(training$Class), ntree=ntree, importance=TRUE)
-  }
+  # rfclass <- foreach(ntree=rep(300, 4), .combine=combine, .packages='randomForest') %dopar% {
+  #   randomForest(training[,-1], as.factor(training$Class), ntree=ntree, importance=TRUE)
+  # }
 
   #####################################################################################################
   ### Write Output
