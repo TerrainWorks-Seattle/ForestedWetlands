@@ -1,4 +1,4 @@
-<html xml:lang="en" lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:gmd="http://www.isotc211.org/2005/gmd" xmlns:res="http://www.esri.com/metadata/res/">
+﻿<html xml:lang="en" lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:gmd="http://www.isotc211.org/2005/gmd" xmlns:res="http://www.esri.com/metadata/res/">
   <head>
     <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
     <style type="text/css" id="internalStyle" xmlns="" xmlns:esri="http://www.esri.com/metadata/" xmlns:msxsl="urn:schemas-microsoft-com:xslt">
@@ -255,161 +255,161 @@
     </div>
     <div xmlns="" xmlns:esri="http://www.esri.com/metadata/" xmlns:msxsl="urn:schemas-microsoft-com:xslt">
       <h3>Syntax</h3>
-      <p>BuildRandomForest_ (Work_Space, Input_Rasters, Training_Data, Input_Field, Not-a-wetland_Class, Wetland_Class, Model_name, {Output_probability_raster}) <br /><br /></p>
+      <p>BuildRandomForest_ (Work_Space, Input_Rasters, Training_Data, Input_Field, Wetland_Class, Not-a-wetland_Class, Model_name, {Output_probability_raster}) <br /><br /></p>
       <table>
-        <tr>
-          <th width="30%">Parameter</th>
-          <th width="50%">Explanation</th>
-          <th width="20%">Data Type</th>
-        </tr>
-        <tr>
-          <td class="gp">Work_Space</td>
-          <td class="gp" align="left">
-            <span class="SubContentHeader">Dialog Reference</span>
-            <br />
-            <DIV STYLE="text-align:Left;">
-              <DIV>
-                <P>
-                  <SPAN>This is the ArcGIS workspace. Click on the dialog icon to the right to select the folder to serve as the workspace.</SPAN>
-                </P>
-              </DIV>
-            </DIV>
-            <p>
-              <span class="noContent">There is no python reference for this parameter.</span>
-            </p>
-          </td>
-          <td class="gp" align="left">Folder</td>
-        </tr>
-        <tr>
-          <td class="gp">Input_Rasters</td>
-          <td class="gp" align="left">
-            <span class="SubContentHeader">Dialog Reference</span>
-            <br />
-            <DIV STYLE="text-align:Left;">
-              <DIV>
-                <DIV>
-                  <P>
-                    <SPAN>A set of rasters that provide information to infer probability of wetland occurrence. These rasters must all have the same extent, cell size, cell-corner locations, and coordinate system. A set of rasters derived from a single DEM using the Surface Metrics script tool in the DEMutilities toolbox will meet these criteria; rasters from other sources need to be resampled within ArcGIS if they do not meet these criteria. Click on the folder icon to the right to pull up a dialog box from which to select input rasters. </SPAN>
-                  </P>
-                </DIV>
-              </DIV>
-            </DIV>
-            <p>
-              <span class="noContent">There is no python reference for this parameter.</span>
-            </p>
-          </td>
-          <td class="gp" align="left">Multiple Value</td>
-        </tr>
-        <tr>
-          <td class="gp">Training_Data</td>
-          <td class="gp" align="left">
-            <span class="SubContentHeader">Dialog Reference</span>
-            <br />
-            <DIV STYLE="text-align:Left;">
-              <DIV>
-                <P>
-                  <SPAN>A point feature class containing locations classified as wetland or non-wetland. Click on the folder icon at the left to select a feature class.</SPAN>
-                </P>
-              </DIV>
-            </DIV>
-            <p>
-              <span class="noContent">There is no python reference for this parameter.</span>
-            </p>
-          </td>
-          <td class="gp" align="left">Feature Class</td>
-        </tr>
-        <tr>
-          <td class="gp">Input_Field</td>
-          <td class="gp" align="left">
-            <span class="SubContentHeader">Dialog Reference</span>
-            <br />
-            <DIV STYLE="text-align:Left;">
-              <DIV>
-                <P>
-                  <SPAN>The input field in the training-data feature class with the wetland class.</SPAN>
-                </P>
-              </DIV>
-            </DIV>
-            <p>
-              <span class="noContent">There is no python reference for this parameter.</span>
-            </p>
-          </td>
-          <td class="gp" align="left">Field</td>
-        </tr>
-        <tr>
-          <td class="gp">Not-a-wetland_Class</td>
-          <td class="gp" align="left">
-            <span class="SubContentHeader">Dialog Reference</span>
-            <br />
-            <DIV STYLE="text-align:Left;">
-              <DIV>
-                <P>
-                  <SPAN>The entry in the Input Field that indicates the point is not a wetland.</SPAN>
-                </P>
-              </DIV>
-            </DIV>
-            <p>
-              <span class="noContent">There is no python reference for this parameter.</span>
-            </p>
-          </td>
-          <td class="gp" align="left">String</td>
-        </tr>
-        <tr>
-          <td class="gp">Wetland_Class</td>
-          <td class="gp" align="left">
-            <span class="SubContentHeader">Dialog Reference</span>
-            <br />
-            <DIV STYLE="text-align:Left;">
-              <DIV>
-                <P>
-                  <SPAN>The entry in the Input Field that indicates the point is a wetland.</SPAN>
-                </P>
-              </DIV>
-            </DIV>
-            <p>
-              <span class="noContent">There is no python reference for this parameter.</span>
-            </p>
-          </td>
-          <td class="gp" align="left">String</td>
-        </tr>
-        <tr>
-          <td class="gp">Model_name</td>
-          <td class="gp" align="left">
-            <span class="SubContentHeader">Dialog Reference</span>
-            <br />
-            <DIV STYLE="text-align:Left;">
-              <DIV>
-                <P>
-                  <SPAN>The random forest model is stored in the working directory as "model_name".RFmodel, where "model_name" is what ever you enter in this box. The list of input-raster-file names is also stored as "model_name".RasterList</SPAN>
-                </P>
-              </DIV>
-            </DIV>
-            <p>
-              <span class="noContent">There is no python reference for this parameter.</span>
-            </p>
-          </td>
-          <td class="gp" align="left">String</td>
-        </tr>
-        <tr>
-          <td class="gp">Output_probability_raster (Optional) </td>
-          <td class="gp" align="left">
-            <span class="SubContentHeader">Dialog Reference</span>
-            <br />
-            <DIV STYLE="text-align:Left;">
-              <DIV>
-                <DIV>
-                  <P>
-                    <SPAN>An optional output probability raster. Click on the folder icon to the right to bring up a dialog box for selecting the output location and typing the raster name. The output raster is stored as a GeoTiff file with extension .tif. Depending on the class names for Wetland and Upland, the probability raster shows either the modeled probability that a wetland will exist within each DEM cell (if the wetland class name is alphabetically before the upland class name), or the probability that a wetland does not exist in each DEM cell. If the raster shows the probability of not being a wetland, simply subtract it from one in the raster calculator to get the probability of being a wetland.</SPAN>
-                  </P>
-                </DIV>
-              </DIV>
-            </DIV>
-            <p>
-              <span class="noContent">There is no python reference for this parameter.</span>
-            </p>
-          </td>
-          <td class="gp" align="left">Raster Dataset</td>
-        </tr>
+          <tr>
+              <th width="30%">Parameter</th>
+              <th width="50%">Explanation</th>
+              <th width="20%">Data Type</th>
+          </tr>
+          <tr>
+              <td class="gp">Work_Space</td>
+              <td class="gp" align="left">
+                  <span class="SubContentHeader">Dialog Reference</span>
+                  <br />
+                  <DIV STYLE="text-align:Left;">
+                      <DIV>
+                          <P>
+                              <SPAN>This is the ArcGIS workspace. Click on the dialog icon to the right to select the folder to serve as the workspace.</SPAN>
+                          </P>
+                      </DIV>
+                  </DIV>
+                  <p>
+                      <span class="noContent">There is no python reference for this parameter.</span>
+                  </p>
+              </td>
+              <td class="gp" align="left">Folder</td>
+          </tr>
+          <tr>
+              <td class="gp">Input_Rasters</td>
+              <td class="gp" align="left">
+                  <span class="SubContentHeader">Dialog Reference</span>
+                  <br />
+                  <DIV STYLE="text-align:Left;">
+                      <DIV>
+                          <DIV>
+                              <P>
+                                  <SPAN>A set of rasters that provide information to infer probability of wetland occurrence. These rasters must all have the same extent, cell size, cell-corner locations, and coordinate system. A set of rasters derived from a single DEM using the Surface Metrics script tool in the DEMutilities toolbox will meet these criteria; rasters from other sources need to be resampled within ArcGIS if they do not meet these criteria. Click on the folder icon to the right to pull up a dialog box from which to select input rasters. </SPAN>
+                              </P>
+                          </DIV>
+                      </DIV>
+                  </DIV>
+                  <p>
+                      <span class="noContent">There is no python reference for this parameter.</span>
+                  </p>
+              </td>
+              <td class="gp" align="left">Multiple Value</td>
+          </tr>
+          <tr>
+              <td class="gp">Training_Data</td>
+              <td class="gp" align="left">
+                  <span class="SubContentHeader">Dialog Reference</span>
+                  <br />
+                  <DIV STYLE="text-align:Left;">
+                      <DIV>
+                          <P>
+                              <SPAN>A point feature class containing locations classified as wetland or non-wetland. Click on the folder icon at the left to select a feature class.</SPAN>
+                          </P>
+                      </DIV>
+                  </DIV>
+                  <p>
+                      <span class="noContent">There is no python reference for this parameter.</span>
+                  </p>
+              </td>
+              <td class="gp" align="left">Feature Class</td>
+          </tr>
+          <tr>
+              <td class="gp">Input_Field</td>
+              <td class="gp" align="left">
+                  <span class="SubContentHeader">Dialog Reference</span>
+                  <br />
+                  <DIV STYLE="text-align:Left;">
+                      <DIV>
+                          <P>
+                              <SPAN>The field of the training-data feature class with the wetland class labels.</SPAN>
+                          </P>
+                      </DIV>
+                  </DIV>
+                  <p>
+                      <span class="noContent">There is no python reference for this parameter.</span>
+                  </p>
+              </td>
+              <td class="gp" align="left">Field</td>
+          </tr>
+          <tr>
+              <td class="gp">Wetland_Class</td>
+              <td class="gp" align="left">
+                  <span class="SubContentHeader">Dialog Reference</span>
+                  <br />
+                  <DIV STYLE="text-align:Left;">
+                      <DIV>
+                          <P>
+                              <SPAN>The entry in the Input Field that indicates the point is a wetland.</SPAN>
+                          </P>
+                      </DIV>
+                  </DIV>
+                  <p>
+                      <span class="noContent">There is no python reference for this parameter.</span>
+                  </p>
+              </td>
+              <td class="gp" align="left">String</td>
+          </tr>
+          <tr>
+              <td class="gp">Not-a-wetland_Class</td>
+              <td class="gp" align="left">
+                  <span class="SubContentHeader">Dialog Reference</span>
+                  <br />
+                  <DIV STYLE="text-align:Left;">
+                      <DIV>
+                          <P>
+                              <SPAN>The entry in the Input Field that indicates the point is not a wetland.</SPAN>
+                          </P>
+                      </DIV>
+                  </DIV>
+                  <p>
+                      <span class="noContent">There is no python reference for this parameter.</span>
+                  </p>
+              </td>
+              <td class="gp" align="left">String</td>
+          </tr>
+          <tr>
+              <td class="gp">Model_name</td>
+              <td class="gp" align="left">
+                  <span class="SubContentHeader">Dialog Reference</span>
+                  <br />
+                  <DIV STYLE="text-align:Left;">
+                      <DIV>
+                          <P>
+                              <SPAN>The random forest model is stored in the working directory as model_name.RFmodel, where "model_name" is this field's value. The list of input-raster-file names is also stored as model_name.RasterList</SPAN>
+                          </P>
+                      </DIV>
+                  </DIV>
+                  <p>
+                      <span class="noContent">There is no python reference for this parameter.</span>
+                  </p>
+              </td>
+              <td class="gp" align="left">String</td>
+          </tr>
+          <tr>
+              <td class="gp">Output_probability_raster (Optional) </td>
+              <td class="gp" align="left">
+                  <span class="SubContentHeader">Dialog Reference</span>
+                  <br />
+                  <DIV STYLE="text-align:Left;">
+                      <DIV>
+                          <DIV>
+                              <P>
+                                  <SPAN>The name of the optional output probability raster file. The output raster is stored as a GeoTiff file called raster_name.tif, where "raster_name" is this field's value. Depending on the class names for Wetland and Upland, the probability raster shows either the modeled probability that a wetland will exist within each DEM cell (if the wetland class name is alphabetically before the upland class name), or the probability that a wetland does not exist in each DEM cell. If the raster shows the probability of not being a wetland, simply subtract it from one in the raster calculator to get the probability of being a wetland.</SPAN>
+                              </P>
+                          </DIV>
+                      </DIV>
+                  </DIV>
+                  <p>
+                      <span class="noContent">There is no python reference for this parameter.</span>
+                  </p>
+              </td>
+              <td class="gp" align="left">Raster Dataset</td>
+          </tr>
       </table>
     </div>
     <div xmlns="" xmlns:esri="http://www.esri.com/metadata/" xmlns:msxsl="urn:schemas-microsoft-com:xslt">
