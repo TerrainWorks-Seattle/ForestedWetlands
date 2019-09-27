@@ -226,7 +226,7 @@ class SurfaceMetrics(object):
 
         if descDEM.extension != "flt":
             inraster = descDEM.path + "\\" + descDEM.name
-            outraster = scratchPath + descDEM.name + ".flt"
+            outraster = scratchPath + descDEM.basename + ".flt"
             if not netstream.isflt(outraster):
                 arcpy.RasterToFloat_conversion(inraster, outraster)
                 killRasterList.append(outraster)
