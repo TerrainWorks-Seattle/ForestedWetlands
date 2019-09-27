@@ -111,7 +111,7 @@ tool_exec<- function(in_params, out_params){
       
     } else {
       # Initialize the output file to write probabilities to in parts
-      out <- brick(rasters)
+      out <- raster(rasters)
       out <- writeStart(out, filename=fname, overwrite=TRUE)
     }
     
