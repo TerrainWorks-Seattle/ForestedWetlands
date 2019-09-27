@@ -101,6 +101,10 @@ tool_exec<- function(in_params, out_params){
       s <- suppressWarnings(extract(crop(rasters, extent(rasters, bStart, bEnd, 1, ncol(rasters))), points, method='bilinear'))
     }
     
+    # Close the cluster connection
+    if (!is.na(numCores))
+      stopCluster(cl)
+    
     arc.progress_label(paste0("Extracting Data...", 100, "%"))
     return(result)
   }
@@ -256,10 +260,6 @@ tool_exec<- function(in_params, out_params){
     #predict(rasters, rfclass, type = "prob", filename = outProbRaster, format = "GTiff")
     print(paste0("Created GeoTiff probability raster ",outProbRaster[1]))
   }
-  
-  # Close the cluster connection
-  if (!is.na(numCores))
-    stopCluster(cl)
   
   return(out_params)
 }
