@@ -223,7 +223,6 @@ tool_exec<- function(in_params, out_params){
     points <- arc.data2sp(allPoints)
   
     # Find the raster values at the point locations
-    #pointValues <- raster::extract(rasters, points, method='bilinear')  # TODO: Chunk/parallelize this line like in BRF.R (EASY)
     pointValues <- extractInParts(rasters, points)
     
     # Append the class values as the first column
@@ -249,7 +248,7 @@ tool_exec<- function(in_params, out_params){
     print(head(newdata))
     
     # Run model on these data
-    test <- predict(rfclass, type = "response", newdata = newdata[,-1])  # TODO: Check if this needs to be partitioned
+    test <- predict(rfclass, type = "response", newdata = newdata[,-1])
     print(table(test, newdata$Class))
   }
 
@@ -257,7 +256,6 @@ tool_exec<- function(in_params, out_params){
   if (!is.null(outProbRaster) && outProbRaster != "NA") {
     arc.progress_label("Creating probability raster - this can take a while...")
     predictInParts(rasters, rfclass, outProbRaster)
-    #predict(rasters, rfclass, type = "prob", filename = outProbRaster, format = "GTiff")
     print(paste0("Created GeoTiff probability raster ",outProbRaster[1]))
   }
   
