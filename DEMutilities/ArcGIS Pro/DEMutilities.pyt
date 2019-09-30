@@ -221,7 +221,9 @@ class SurfaceMetrics(object):
             scratchPath = scratchPath + "\\"
             
         messages.addMessage("Scratch folder: " + scratchPath)
-        
+                
+        killRasterList = []
+
         if descDEM.extension != "flt":
             inraster = descDEM.path + "\\" + descDEM.name
             outraster = scratchPath + descDEM.basename + ".flt"
