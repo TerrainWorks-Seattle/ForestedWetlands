@@ -222,11 +222,9 @@ class SurfaceMetrics(object):
             
         messages.addMessage("Scratch folder: " + scratchPath)
         
-        killRasterList = []        
-
         if descDEM.extension != "flt":
             inraster = descDEM.path + "\\" + descDEM.name
-            outraster = scratchPath + descDEM.name + ".flt"
+            outraster = scratchPath + descDEM.basename + ".flt"
             if not netstream.isflt(outraster):
                 arcpy.RasterToFloat_conversion(inraster, outraster)
                 killRasterList.append(outraster)
@@ -234,8 +232,15 @@ class SurfaceMetrics(object):
             
         if parameters[1].value:
             length = parameters[1].valueAsText
-            
+            sr = descDEM.spatialReference
+            DEM_cellSize = descDEM.children[0].meanCellHeight
+            DEM_unitScale = sr.metersPerUnit
+            DEM_scale = DEM_unitScale * DEM_cellSize
+            adjustedLength = float(length)/(DEM_scale)
+
         messages.addMessage("Length scale (m): " + length)
+        messages.addMessage("DEM scale (m/cell): " + str(DEM_scale))
+        messages.addMessage("Adjusted length scale (grid cells): " + str(adjustedLength))
             
         rasters = {}
         
