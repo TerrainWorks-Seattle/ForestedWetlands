@@ -235,8 +235,6 @@ class SurfaceMetrics(object):
         if parameters[1].value:
             length = parameters[1].valueAsText
             sr = descDEM.spatialReference
-            messages.addMessage(sr.name)
-            messages.addMessage(sr.exportToString())
             DEM_cellSize = descDEM.children[0].meanCellHeight
             DEM_unitScale = sr.metersPerUnit
             DEM_unitName = sr.linearUnitName
