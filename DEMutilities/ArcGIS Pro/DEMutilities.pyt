@@ -235,14 +235,16 @@ class SurfaceMetrics(object):
         if parameters[1].value:
             length = parameters[1].valueAsText
             sr = descDEM.spatialReference
+            messages.addMessage(sr.name)
+            messages.addMessage(sr.exportToString())
             DEM_cellSize = descDEM.children[0].meanCellHeight
             DEM_unitScale = sr.metersPerUnit
-            DEM_scale = DEM_unitScale * DEM_cellSize
-            adjustedLength = float(length)/(DEM_scale)
+            DEM_unitName = sr.linearUnitName
+            adjustedLength = float(length)/(DEM_unitScale)
 
         messages.addMessage("Length scale (m): " + length)
-        messages.addMessage("DEM scale (m/cell): " + str(DEM_scale))
-        messages.addMessage("Adjusted length scale (grid cells): " + str(adjustedLength))
+        messages.addMessage("Conversion rate (m/DEM unit): " + str(DEM_unitScale))
+        messages.addMessage("Adjusted length scale (" + DEM_unitName + "): " + str(adjustedLength))
             
         rasters = {}
         
@@ -289,7 +291,7 @@ class SurfaceMetrics(object):
         else:
             inputfile.write("DEM: " + DEM + "\n")
         inputfile.write("SCRATCH DIRECTORY: " + scratchPath + "\n")
-        inputfile.write("LENGTH SCALE: " + length + "\n")
+        inputfile.write("LENGTH SCALE: " + str(adjustedLength) + "\n")
         
         if "Grad" in rasters:
             inputfile.write("GRID: GRADIENT, OUTPUT FILE = " +  rasters.get("Grad") + "\n")
@@ -327,7 +329,7 @@ class SurfaceMetrics(object):
             else:
                 inputfile.write("DEM: " + DEM + "\n")
             inputfile.write("SCRATCH DIRECTORY: " + scratchPath + "\n")
-            radius = float(length)/2.
+            radius = float(adjustedLength)/2.
             inputfile.write("RADIUS: " + str(radius) + "\n")
             devParam = rasters["Dev"]
             if "Resample" in devParam:
