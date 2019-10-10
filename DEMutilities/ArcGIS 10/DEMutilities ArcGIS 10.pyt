@@ -4,6 +4,7 @@
  Version:     1.0.0
  Author:      Daniel Miller, 2017
  Tools:       Surface Metrics
+              Surface Smoothing
               
  Description: A set of tools for working with DEMs
 ----------------------------------------------------------------------------------'''
@@ -25,19 +26,19 @@ class Toolbox(object):
         self.alias = "DEMutil"
 
         # List of tool classes associated with this toolbox
-        self.tools = [SurfaceMetrics]
+        self.tools = [SurfaceMetrics, SurfaceSmoothing]
 
 class SurfaceMetrics(object):
     def __init__(self):
         """"------------------------------------------------------------------------------------------------
         Tool Name: Surface Metrics
-        Version: 1.0.0, python 3.6.6, ArcGIS Pro
+        Version: 1.0.0, python 2.7, ArcGIS 10
         Author: Dan Miller, 2019
         Required arguments:
             
         Optional Arguments:
             
-        Description: 
+        Description: A set of tools for working with DEMs
         -------------------------------------------------------------------------------------------------"""
         self.label = "Surface Metrics"
         self.description = "Calculate elevation derivatives"
@@ -349,4 +350,4 @@ class SurfaceMetrics(object):
             except OSError:
                 messages.addErrorMessage('LocalRelief failed')
         
-        return 
+        return
