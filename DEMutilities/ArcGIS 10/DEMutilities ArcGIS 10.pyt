@@ -4,7 +4,6 @@
  Version:     1.0.0
  Author:      Daniel Miller, 2017
  Tools:       Surface Metrics
-              Surface Smoothing
               
  Description: A set of tools for working with DEMs
 ----------------------------------------------------------------------------------'''
@@ -26,7 +25,7 @@ class Toolbox(object):
         self.alias = "DEMutil"
 
         # List of tool classes associated with this toolbox
-        self.tools = [SurfaceMetrics, SurfaceSmoothing]
+        self.tools = [SurfaceMetrics]
 
 class SurfaceMetrics(object):
     def __init__(self):
