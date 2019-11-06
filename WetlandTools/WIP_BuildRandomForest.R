@@ -266,7 +266,7 @@ tool_exec<- function(in_params, out_params){
   #print(summary(rfclass)) # not sure most users would find this very useful
   print(importance(rfclass))
   varImpPlot(rfclass,sort=TRUE)
-  dev.copy(win.metafile, paste0(modelName[1], 'importance.wmf'))
+  dev.copy(win.metafile, paste0(modelName[1], '_importance.wmf'))
   dev.off()
   cat(paste0("..Model saved as ", modelName,"\n"))
   plotandsave(rfclass, paste0(modelName[1],'_rfclass'))
@@ -281,7 +281,7 @@ tool_exec<- function(in_params, out_params){
     cat(paste0("Created GeoTiff probability raster ",outputProbRaster[1],"\n"))
     
     if (calcStats) {
-      arc.progess_label("Calculating statistics..")
+      arc.progress_label("Calculating statistics..")
       # Process test points, same steps as earlier
       pointValues <- extractInParts(probs, points)
       pointValues <- cbind(points[,1],pointValues)

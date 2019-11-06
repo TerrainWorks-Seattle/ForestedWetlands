@@ -280,7 +280,7 @@ tool_exec<- function(in_params, out_params){
     print(paste0("Created GeoTiff probability raster ",outProbRaster[1]))
     
     if (calcStats) {
-      arc.progess_label("Calculating performance statistics..")
+      arc.progress_label("Calculating performance statistics..")
       # Process test points, same steps as earlier
       pointValues <- extractInParts(probs, points)
       pointValues <- cbind(points[,1],pointValues)
