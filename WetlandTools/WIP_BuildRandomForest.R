@@ -22,6 +22,9 @@ tool_exec<- function(in_params, out_params){
   if(!requireNamespace("foreach", quietly = TRUE))
     install.packages("foreach", quiet = TRUE)
   
+  if(!requireNamespace("ROCR", quietly = TRUE))
+    install.packages("ROCR", quiet = TRUE)
+  
   require(raster)
   require(sp)
   require(rgdal)
@@ -29,25 +32,21 @@ tool_exec<- function(in_params, out_params){
   require(parallel)
   require(doParallel)
   require(foreach)
+  require(ROCR)
   
   ##################################################################################################### 
-  ### Define helper functions for point value extraction in parts
+  ### Define helper functions #########################################################################
   #####################################################################################################
-  ### Helper for extract loop: Adds two matrices as if NAs were 0s ####################################
-  combineMatrices <- function(a, b) {
-    combined <- ifelse(is.na(a),
-                       ifelse(is.na(b),
-                              NA,
-                              b),
-                       ifelse(is.na(b),
-                              a,
-                              a+b))
-    return(combined)
-  }
   
   #### Extracts point data from rasters without breaking memory limits ################################
   extractInParts <- function(rasters, points) {
-
+    # Check if Raster* can fit entirely in memory
+    if (canProcessInMemory(rasters)) {
+      # Extract all point data at once
+      result <- suppressWarnings(extract(rasters, points, method='bilinear'))
+      return(result)
+    }
+    
     # Count the available cores on computer
     numCores <- detectCores()
     if (is.na(numCores)) {
@@ -66,19 +65,13 @@ tool_exec<- function(in_params, out_params){
       })
     }
     
-    # Check if Raster* can fit entirely in memory
-    if (canProcessInMemory(rasters)) {
-      # Extract all point data at once
-      result <- extract(rasters, points, method='bilinear')
-      return(result)
-    }
-    
     # Find the suggested block size for processing
     bs <- blockSize(rasters)
     
     # Extract point values from input rasters.
     # result = the final matrix after each iteration's output is combined with 'combineMatrices'
     result <- foreach (i = 1:bs$n, .combine='combineMatrices') %dopar% {
+      # Only runs if cluster is sequential
       arc.progress_label(paste0("Extracting Data...", ceiling(100*(i/bs$n)), "%"))
 
       # Find the block's starting and ending rows
@@ -97,19 +90,33 @@ tool_exec<- function(in_params, out_params){
     arc.progress_label(paste0("Extracting Data...", 100, "%"))
     return(result)
   }
-  ##################################################################################################### 
-  ### Define helper function for probability raster creation in parts
-  #####################################################################################################
+  
+  ### Adds two matrices, treating NAs as 0s ####################################
+  combineMatrices <- function(a, b) {
+    combined <- ifelse(is.na(a),
+                       ifelse(is.na(b),
+                              NA,
+                              b),
+                       ifelse(is.na(b),
+                              a,
+                              a+b))
+    return(combined)
+  }
+  
   ### Predicts probabilities and creates raster without breaking memory limits ########################
   predictInParts <- function(rasters, model, fname) {
-    
-    # Create the cluster for clusterR to use
-    beginCluster()
     
     # Check if Raster* can fit entirely in memory
     if (canProcessInMemory(rasters)) {
       # Generate entire probability raster
-      p <- clusterR(rasters, predict, list(model, type="prob", filename=fname, format="GTiff", overwrite=TRUE))
+      out <- raster(rasters)
+      out <- writeStart(out, filename=fname, formate="GTiff", overwrite=TRUE)
+      beginCluster()
+      p <- clusterR(rasters, predict, args=list(model, type="prob"))
+      endCluster()
+      v <- getValues(p)
+      writeValues(out, v, 0)
+      out <- writeStop(out)
       return(p)
 
     } else {
@@ -118,6 +125,9 @@ tool_exec<- function(in_params, out_params){
       out <- writeStart(out, filename=fname, format="GTiff", overwrite=TRUE)
     }
     
+    # Create the cluster for clusterR to use
+    beginCluster()
+
     # Find the suggested block size for processing
     bs <- blockSize(rasters)
     
@@ -133,8 +143,8 @@ tool_exec<- function(in_params, out_params){
       c <- crop(rasters, extent(rasters, bStart, bEnd, 1, ncol(rasters)))
 
       # Apply the model to the cropped raster
-      p <- clusterR(c, predict, args=list(model, type="prob"))
-
+      p <- suppressWarnings(clusterR(c, predict, args=list(model, type="prob")))
+      
       # Write the block's values to the output raster
       v <- getValues(p)
       out <- writeValues(out, v, bStart)
@@ -150,6 +160,15 @@ tool_exec<- function(in_params, out_params){
     return(out)
   }
   
+  # Function to plot a graph and save to specified file
+  plotandsave <- function(f, filename, baseline=FALSE) {
+    dev.new()
+    plot(f, main=filename)
+    if (baseline) {abline(a=0,b=1)}
+    dev.copy(win.metafile, paste0(filename, ".wmf"))
+    dev.off()
+  }
+  
   ##################################################################################################### 
   ### Define input/output parameters
   #####################################################################################################
@@ -161,6 +180,7 @@ tool_exec<- function(in_params, out_params){
   notWet <- in_params[[6]]       # class for not-a-wetland, thes could be expanded to allow multiple names
   modelName <- in_params[[7]]    # file name for model stored to disk in working directory. 
   #                                Model consists of two files, modelName.RFmodel and modelName.rasterList
+  calcStats <- in_params[[8]]
   outputProbRaster <- out_params[[1]]
 
   setwd(workingDir)
@@ -222,12 +242,12 @@ tool_exec<- function(in_params, out_params){
   }
   
   #Print summaries of the independent variable values for wetland and not-a-wetland points
-  className <- in_params[[4]][1]
-  print(paste0("Class ", className))
-  print(summary(training[training$Class == in_params[[4]][1],]))
   className <- in_params[[5]][1]
   print(paste0("Class ", className))
   print(summary(training[training$Class == in_params[[5]][1],]))
+  className <- in_params[[6]][1]
+  print(paste0("Class ", className))
+  print(summary(training[training$Class == in_params[[6]][1],]))
   
   #####################################################################################################
   ### Build Random Forest Model
@@ -240,14 +260,16 @@ tool_exec<- function(in_params, out_params){
   ### Write Output
   ##################################################################################################### 
   # Consider additional output to a .RFlog file that gives details of the model
-  modelName <- paste0(modelName[1],".RFmodel")
-  save(rfclass,file=modelName)
+  filename <- paste0(modelName[1],".RFmodel")
+  save(rfclass,file=filename)
   print(rfclass)
   #print(summary(rfclass)) # not sure most users would find this very useful
   print(importance(rfclass))
   varImpPlot(rfclass,sort=TRUE)
-  cat(paste0("..Model saved as ", modelName,"\n"))    
-#  plot(rfclass) # I can't get two plots to both show up
+  dev.copy(win.metafile, paste0(modelName[1], 'importance.wmf'))
+  dev.off()
+  cat(paste0("..Model saved as ", modelName,"\n"))
+  plotandsave(rfclass, paste0(modelName[1],'_rfclass'))
 
 # If an output probability raster is specified, create it 
   if (!is.null(outputProbRaster) && outputProbRaster != "NA") {
@@ -255,9 +277,41 @@ tool_exec<- function(in_params, out_params){
     
   # Rename layer names in the rasterstack to match the column names in the data frame used to train the model 
     for (i in 1:nlayers(rasters)) {names(rasters)[i] <- paste0("Raster",i)}
+    probs <- suppressWarnings(predictInParts(rasters, rfclass, outputProbRaster))
+    cat(paste0("Created GeoTiff probability raster ",outputProbRaster[1],"\n"))
     
-    predictInParts(rasters, rfclass, outputProbRaster)
-    print(paste0("Created GeoTiff probability raster ",outputProbRaster[1]))
+    if (calcStats) {
+      arc.progess_label("Calculating statistics..")
+      # Process test points, same steps as earlier
+      pointValues <- extractInParts(probs, points)
+      pointValues <- cbind(points[,1],pointValues)
+      pointValues <- as.data.frame(pointValues)
+      pointValues <- pointValues[pointValues$Class == isWet[1]|pointValues$Class == notWet[1],]
+      pointValues <- na.omit(pointValues)
+      coords <- names(pointValues) %in% c("coords.x1","coords.x2")
+      predictions <- pointValues[!coords]
+      
+      names(predictions)[2] <- "Prob"
+      pred <- suppressWarnings(prediction(predictions$Prob, predictions$Class, label.ordering=c(isWet[1],notWet[1])))
+      roc <- performance(pred, measure="tpr", x.measure="fpr")
+      auc <- performance(pred, measure="auc")
+      cat(paste0("AUROC: ", auc@y.values, "\n"))
+      plotandsave(roc, paste0(modelName[1],'_roc'), baseline=TRUE)
+      
+      prc <- performance(pred, measure="prec", x.measure="rec")
+      idx <- which.max(slot(prc, "y.values")[[1]])
+      prbe <- slot(prc, "y.values")[[1]][idx]
+      cutoff <- slot(prc, "x.values")[[1]][idx]
+      print(c(PRBE=prbe, cutoff=cutoff))
+      plotandsave(prc, paste0(modelName[1],'_prc'))
+      
+      acc <- performance(pred, measure="acc")
+      idx <- which.max(slot(acc, "y.values")[[1]])
+      maxacc <- slot(acc, "y.values")[[1]][idx]
+      cutoff <- slot(acc, "x.values")[[1]][idx]
+      print(c(accuracy=maxacc, cutoff=cutoff))
+      plotandsave(acc, paste0(modelName[1],'_acc'))
+    }
   }
   
   return(out_params)
