@@ -171,7 +171,7 @@ tool_exec<- function(in_params, out_params){
     endCluster()
     
     arc.progress_label(paste0("Creating probability raster...", 100, "%"))
-    return(out_predictions)
+    return(out)
   }
   
   # Function to plot a graph and save to specified file
