@@ -110,7 +110,7 @@ tool_exec<- function(in_params, out_params){
     if (canProcessInMemory(rasters)) {
       # Generate entire probability raster
       out <- raster(rasters)
-      out <- writeStart(out, filename=fname, formate="GTiff", overwrite=TRUE)
+      out <- writeStart(out, filename=fname, format="GTiff", overwrite=TRUE)
       beginCluster()
       p <- clusterR(rasters, predict, args=list(model, type="prob"))
       endCluster()
