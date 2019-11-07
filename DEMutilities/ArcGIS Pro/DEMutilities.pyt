@@ -221,6 +221,7 @@ class SurfaceMetrics(object):
         if not scratchPath.endswith("\\"):
             scratchPath = scratchPath + "\\"
         messages.addMessage("Scratch folder: " + scratchPath)
+        
         if descDEM.extension != "flt":
             DEM = convertRasterToFlt(descDEM, scratchPath)
         
@@ -638,3 +639,4 @@ def findFile(filename, directory):
         pass
     finally:
         return foundFile
+
