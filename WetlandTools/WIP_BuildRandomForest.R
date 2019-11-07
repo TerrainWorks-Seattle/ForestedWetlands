@@ -292,7 +292,7 @@ tool_exec<- function(in_params, out_params){
       predictions <- pointValues[!coords]
       
       names(predictions)[2] <- "Prob"
-      pred <- suppressWarnings(prediction(predictions$Prob, predictions$Class, label.ordering=c(isWet[1],notWet[1])))
+      pred <- prediction(predictions$Prob, predictions$Class, label.ordering=c(isWet[1],notWet[1]))
       roc <- performance(pred, measure="tpr", x.measure="fpr")
       auc <- performance(pred, measure="auc")
       cat(paste0("AUROC: ", auc@y.values, "\n"))
