@@ -122,25 +122,14 @@ tool_exec<- function(in_params, out_params){
     
     # Check if Raster* can fit entirely in memory
     if (canProcessInMemory(rasters)) {
-      # Generate entire probability raster
-      out <- raster(rasters)
-      out <- writeStart(out, filename=fname, format="GTiff", overwrite=TRUE)
-      beginCluster()
-      p <- clusterR(rasters, predict, args=list(model, type="prob"))
-      endCluster()
-      v <- getValues(p)
-      writeValues(out, v, 0)
-      out <- writeStop(out)
+      # Generate entire probability raster at once
+      p <- predict(rasters, model, type="prob", filename=fname, format="GTiff", overwrite=TRUE)
       return(p)
-      
     } else {
       # Initialize the output file to write probabilities to in parts
       out <- raster(rasters)
       out <- writeStart(out, filename=fname, format="GTiff", overwrite=TRUE)
     }
-    
-    # Create the cluster for clusterR to use
-    beginCluster()
     
     # Find the suggested block size for processing
     bs <- blockSize(rasters)
@@ -157,7 +146,7 @@ tool_exec<- function(in_params, out_params){
       c <- crop(rasters, extent(rasters, bStart, bEnd, 1, ncol(rasters)))
       
       # Apply the model to the cropped raster
-      p <- clusterR(c, predict, args=list(model, type="prob"))
+      p <- predict(c, model, type="prob")
 
       # Write the block's values to the output raster
       v <- getValues(p)
@@ -166,9 +155,6 @@ tool_exec<- function(in_params, out_params){
     
     # Stop writing and close the file
     out <- writeStop(out)
-    
-    # Delete the cluster
-    endCluster()
     
     arc.progress_label(paste0("Creating probability raster...", 100, "%"))
     return(out)
