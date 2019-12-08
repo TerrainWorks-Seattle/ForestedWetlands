@@ -176,7 +176,7 @@ class PercentileFilter(object):
         if parameters[1].value != None:
             if parameters[1].value < 0 or parameters[1].value > 100:
                 parameters[1].setErrorMessage(
-                    "Percentile value must an integer within [0, 100]."
+                    "Percentile value must be an integer within [0, 100]."
                 )
         return
 
