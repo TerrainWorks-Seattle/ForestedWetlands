@@ -142,31 +142,32 @@ class SurfaceMetrics(object):
         """Modify the values and properties of parameters before internal
         validation is performed.  This method is called whenever a parameter
         has been changed."""
-        if parameters[8].value:
-            scratchDir = parameters[8].valueAsText
-        else:
-            scratchDir = os.getcwd()
-
-        # Check that makegrids.exe is accessible if needed
-        foundMakeGrids = True
-        if parameters[2].value or parameters[3].value or parameters[4].value:
-            # Check if makegrids is in scratch directory
-            foundMakeGrids = findFile("MakeGrids.exe", scratchDir)
-        # If local elevation deviation is requested, get resampling parameters
-        foundLocalRelief = True
         if parameters[5].value:
             parameters[6].enabled = True
             parameters[7].enabled = True
-            # Check if localrelief is accessible
-            foundLocalRelief = findFile("LocalRelief.exe", scratchDir)
         else:
             parameters[6].enabled = False
             parameters[7].enabled = False
-        
-        if not foundMakeGrids or not foundLocalRelief:
-            parameters[9].enabled = True
-        else:
-            parameters[9].enabled = False
+
+        if parameters[0].value or parameters[8].value:
+            if parameters[8].value:
+                scratchDir = parameters[8].valueAsText
+            elif parameters[0].value:
+                scratchDir = arcpy.Describe(parameters[0].value).path
+
+            # Check that MakeGrids.exe is in the scratch directory
+            foundMakeGrids = True
+            if parameters[2].value or parameters[3].value or parameters[4].value:
+                foundMakeGrids = findFile("MakeGrids.exe", scratchDir)
+            # If local elevation deviation is requested, check for LocalRelief.exe
+            foundLocalRelief = True
+            if parameters[5].value:
+                foundLocalRelief = findFile("LocalRelief.exe", scratchDir)
+            
+            if not foundMakeGrids or not foundLocalRelief:
+                parameters[9].enabled = True
+            else:
+                parameters[9].enabled = False
         return
 
     def updateMessages(self, parameters):
@@ -190,7 +191,7 @@ class SurfaceMetrics(object):
                     if not foundLocalRelief:
                         errormsg += "Unable to find LocalRelief.exe in " + exedir + "\n"
             else:
-                errormsg += "Unable to locate both MakeGrids.exe and LocalRelief.exe in scratch/working directory.\n"
+                errormsg += "Unable to locate both MakeGrids.exe and LocalRelief.exe in scratch location.\n"
             if len(errormsg) > 0:
                     errormsg += "Enter a valid path to the files.\n"
                     parameters[9].setErrorMessage(errormsg)
@@ -353,7 +354,7 @@ class TopographicWetnessIndex(object):
             datatype = 'DEFolder',
             parameterType = 'Optional',
             direction = 'Input',
-            enabled = True
+            enabled = False
         )
         
         params = [param0, param1, param2, param3, param4, param5, param6]
@@ -374,19 +375,19 @@ class TopographicWetnessIndex(object):
         """Modify the values and properties of parameters before internal
         validation is performed.  This method is called whenever a parameter
         has been changed."""
+        if parameters[0].value or parameters[5].value:
+            if parameters[5].value:
+                scratchDir = parameters[5].valueAsText
+            elif parameters[0].value:
+                scratchDir = arcpy.Describe(parameters[0].value).path
 
-        if parameters[5].value:
-            scratchDir = parameters[5].valueAsText
-        else:
-            scratchDir = os.getcwd()
-
-        # Check if makegrids is in scratch directory
-        foundMakeGrids = findFile("MakeGrids.exe", scratchDir)
-        
-        if not foundMakeGrids:
-            parameters[6].enabled = True
-        else:
-            parameters[6].enabled = False
+            # Check if makegrids is in scratch directory
+            foundMakeGrids = findFile("MakeGrids.exe", scratchDir)
+            
+            if not foundMakeGrids:
+                parameters[6].enabled = True
+            else:
+                parameters[6].enabled = False
         return
 
     def updateMessages(self, parameters):
@@ -407,7 +408,7 @@ class TopographicWetnessIndex(object):
                 if not foundBuildGrids:
                     errormsg += "Unable to find BuildGrids.exe in " + exedir + "\n"
             else:
-                errormsg += "Unable to locate both MakeGrids.exe and BuildGrids.exe in scratch/working directory.\n"
+                errormsg += "Unable to find both MakeGrids.exe and BuildGrids.exe in scratch location\n"
             if len(errormsg) > 0:
                     errormsg += "Enter a valid path to the files.\n"
                     parameters[6].setErrorMessage(errormsg)
@@ -632,7 +633,8 @@ def findFile(filename, directory):
         with os.scandir(directory) as entries:
             for entry in entries:
                 if entry.is_file():
-                    if entry.name.find(filename) >= 0:
+
+                    if entry.name == filename:
                         foundFile = True
                         break
     except FileNotFoundError:
