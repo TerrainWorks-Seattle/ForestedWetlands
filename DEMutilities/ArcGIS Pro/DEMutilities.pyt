@@ -232,7 +232,7 @@ class SurfaceMetrics(object):
 
         adjustedLength = convertLength(length, descDEM, messages)
 
-        rasters = makeRasterList(
+        requestedRasters = makeRasterList(
             descDEM, 
             length, 
             grad=makeGrad, 
@@ -244,14 +244,14 @@ class SurfaceMetrics(object):
 
         # Create input file and run makegrids
         command = executablePath + ("" if executablePath.endswith("\\") else "\\") + "makegrids"
-        inputfilename = writeInputFileMG(DEM, adjustedLength, rasters, scratchPath, command, self.label)
+        inputfilename = writeInputFileMG(DEM, adjustedLength, requestedRasters, scratchPath, command, self.label)
         try:
             subprocess.call([command,inputfilename])
         except OSError:
             messages.addErrorMessage('MakeGrids failed')
         
 
-        if "Dev" in rasters:
+        if "Dev" in requestedRasters:
             inputfilename = str(scratchPath) + "input_localRelief.txt"
             inputfile = open(inputfilename, 'w')
             inputfile.write("# Input file for LocalRelief\n")
@@ -268,7 +268,7 @@ class SurfaceMetrics(object):
                 inputfile.write("DOWN SAMPLE: " + resample + "\n")
             if interval:
                 inputfile.write("SAMPLE INTERVAL: " + resample + "\n")
-            inputfile.write("OUTPUT DEV RASTER: " + rasters["Dev"] + "\n")
+            inputfile.write("OUTPUT DEV RASTER: " + requestedRasters["Dev"] + "\n")
         
             inputfile.close()     
             
@@ -436,7 +436,7 @@ class TopographicWetnessIndex(object):
         else:
             scratchPath = descDEM.path
         if not scratchPath.endswith("\\"):
-            scratchPath = scratchPath + "\\"      
+            scratchPath = scratchPath + "\\"
         messages.addMessage("Scratch folder: " + scratchPath)
         if descDEM.extension != "flt":
             DEM = convertRasterToFlt(descDEM, scratchPath)
@@ -451,9 +451,9 @@ class TopographicWetnessIndex(object):
         rasters = makeRasterList(
             descDEM, 
             length, 
-            grad=(grad is None), 
-            plan=(plan is None), 
-            bcon=(bcon is None), 
+            grad=(grad is None),
+            plan=(plan is None),
+            bcon=(bcon is None),
             messages=messages
         )
 
@@ -499,7 +499,7 @@ class TopographicWetnessIndex(object):
             messages.addErrorMessage('BuildGrids failed')
             raise
 
-        accpath = scratchPath + "\\" + "accum_" + DEMID + ".flt"
+        accpath = scratchPath + "accum_" + DEMID + ".flt"
         TWI = sa.Ln(sa.Divide(accpath, gradpath))
         out_path = descDEM.path + "\\twi_" + length + ".tif"
         TWI.save(out_path)
