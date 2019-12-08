@@ -263,6 +263,7 @@ tool_exec<- function(in_params, out_params){
     
   # Rename layer names in the rasterstack to match the column names in the data frame used to train the model 
     for (i in 1:nlayers(rasters)) {names(rasters)[i] <- paste0("Raster",i)}
+    arc.progress_label("Creating probability raster")
     cat(paste0("Writing probabilities to ", outputProbRaster))
     probs <- suppressWarnings(predictInParts(rasters, rfclass, outputProbRaster))
     cat(paste0("Created GeoTiff probability raster ",outputProbRaster,"\n"))

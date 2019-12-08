@@ -261,9 +261,10 @@ tool_exec<- function(in_params, out_params){
 
   # Build a probability raster, if requested
   if (!is.null(outProbRaster) && outProbRaster != "NA") {
-    arc.progress_label("Creating probability raster - this can take a while...")
-    predictInParts(rasters, rfclass, outProbRaster)
-    print(paste0("Created GeoTiff probability raster ",outProbRaster[1]))
+    arc.progress_label("Creating probability raster")
+    cat(paste0("Writing probabilities to ", outputProbRaster))
+    probs <- suppressWarnings(predictInParts(rasters, rfclass, outProbRaster))
+    cat(paste0("Created GeoTiff probability raster ",outProbRaster[1]))
     
     if (calcStats) {
       arc.progress_label("Calculating performance statistics..")
