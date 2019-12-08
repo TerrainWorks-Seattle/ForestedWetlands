@@ -3,7 +3,7 @@
  Source Name: DEMutilities.pyt
  Version:     1.0.0
  Author:      Daniel Miller, 2017
- Tools:       Surface Metrics
+ Tools:       Surface Metrics, Topographic Wetness Index
               
  Description: A set of tools for working with DEMs
 ----------------------------------------------------------------------------------'''
@@ -13,6 +13,7 @@ import os
 import subprocess
 import time
 import sys
+from arcpy import sa
 
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 import netstream
@@ -26,7 +27,7 @@ class Toolbox(object):
         self.alias = "DEMutil"
 
         # List of tool classes associated with this toolbox
-        self.tools = [SurfaceMetrics]
+        self.tools = [SurfaceMetrics, TopographicWetnessIndex]
 
 class SurfaceMetrics(object):
     def __init__(self):
@@ -118,7 +119,7 @@ class SurfaceMetrics(object):
             datatype = 'DEFolder',
             parameterType = 'Optional',
             direction = 'Input',
-            enabled = True)
+            enabled = False)
         
         params = [param0, param1, param2, param3, param4, param5, param6, param7, param8, param9]
     #   0 = DEM
@@ -133,194 +134,128 @@ class SurfaceMetrics(object):
     #   9 = executable Path
         return params
 
-    #def isLicensed(self):
-        #"""Set whether tool is licensed to execute."""
-        #return True
+    def isLicensed(self):
+        """Set whether tool is licensed to execute."""
+        return True
 
     def updateParameters(self, parameters):
         """Modify the values and properties of parameters before internal
         validation is performed.  This method is called whenever a parameter
         has been changed."""
-        
         if parameters[8].value:
             scratchDir = parameters[8].valueAsText
         else:
             scratchDir = os.getcwd()
-        
-    # If local elevation deviation is requested, get resampling parameters        
+
+        # Check that makegrids.exe is accessible if needed
+        foundMakeGrids = True
+        if parameters[2].value or parameters[3].value or parameters[4].value:
+            # Check if makegrids is in scratch directory
+            foundMakeGrids = findFile("MakeGrids.exe", scratchDir)
+        # If local elevation deviation is requested, get resampling parameters
+        foundLocalRelief = True
         if parameters[5].value:
             parameters[6].enabled = True
             parameters[7].enabled = True
-        #  Also check to see that the executable file is where we think it is
-        #    if not parameters[9].enabled:
-        #        foundLocalRelief = False
-        #        with os.scandir(scratchDir) as entries:
-        #            for entry in entries:
-        #                if entry.is_file():
-        #                    if (entry.name.find("localrelief.exe") >= 0):
-        #                        foundLocalRelief = True
-        #        if not foundLocalRelief:
-        #            parameters[9].enabled = True
-            
-        #if (parameters[2].value or parameters[3].value or parameters[4].value):
-            # make sure we can find the makegrids.exe file
-        #    if not parameters[9].enabled:
-        #        foundMakeGrids = False
-        #        with os.scandir(scratchDir) as entries:
-        #            for entry in entries:
-        #                if entry.is_file():
-        #                    if (entry.name.find("makegrids.exe") >= 0):
-        #                        foundMakeGrids = True
-        #        if not foundMakeGrids:
-        #            parameters[9].enabled = True
-                                
+            # Check if localrelief is accessible
+            foundLocalRelief = findFile("LocalRelief.exe", scratchDir)
+        else:
+            parameters[6].enabled = False
+            parameters[7].enabled = False
+        
+        if not foundMakeGrids or not foundLocalRelief:
+            parameters[9].enabled = True
+        else:
+            parameters[9].enabled = False
         return
 
     def updateMessages(self, parameters):
         """Modify the messages created by internal validation for each tool
         parameter.  This method is called after internal validation."""
-    
-      #  if parameters[9].enabled:
-      #      if (parameters[2].value or parameters[3].value or parameters[4].value):
-      #          foundMakeGrids = False
-      #          with os.scandir(parameters[9].ValueAsText) as entries:
-      #              for entry in entries:
-      #                  if (entry.name.find("MakeGrids.exe") >= 0):
-      #                      foundMakeGrids = True
-      #          if not foundMakeGrids:
-      #              parameters[9].setErrorMessage("Cannot find executable files in this directory")
-      #      if parameters[5].value:
-      #          foundLocalRelief = False
-      #          with os.scandir(parameters[9].ValueAsText) as entries:
-      #              for entry in entries:
-      #                  if (entry.name.find("LocalRelief.exe") >= 0):
-      #                      foundLocalRelief = True
-      #          if not foundLocalRelief:
-      #              parameters[9].setErrorMessage("Cannot find executable files in this directory")
-        return            
+        # Generate error message if exe path doesn't contain proper files or is expected and missing,
+        # otherwise clear any errors
+        errormsg = ""
+        if parameters[9].enabled:
+            exedir = parameters[9].valueAsText
+            if exedir:
+                if parameters[2].value or parameters[3].value or parameters[4].value:
+                    # Check if makegrids is in scratch directory
+                    foundMakeGrids = findFile("MakeGrids.exe", exedir)
+                    if not foundMakeGrids:
+                        errormsg += "Unable to find MakeGrids.exe in " + exedir + "\n"
+                
+                if parameters[5].value:
+                    # Check if localrelief is in scratch directory
+                    foundLocalRelief = findFile("LocalRelief.exe", exedir)
+                    if not foundLocalRelief:
+                        errormsg += "Unable to find LocalRelief.exe in " + exedir + "\n"
+            else:
+                errormsg += "Unable to locate both MakeGrids.exe and LocalRelief.exe in scratch/working directory.\n"
+            if len(errormsg) > 0:
+                    errormsg += "Enter a valid path to the files.\n"
+                    parameters[9].setErrorMessage(errormsg)
+            else:
+                parameters[9].clearMessage()
+        else:
+            parameters[9].clearMessage()
+        return
                 
     def execute(self, parameters, messages):
         """The source code of the tool."""
-        
-        workingDir = os.getcwd()
-        messages.addMessage("Working directory: " + workingDir)
-        
+        DEM = parameters[0].valueAsText
         descDEM = arcpy.Describe(parameters[0].value)
-        messages.addMessage("DEM: " + descDEM.path + "\\" + descDEM.name)
-        messages.addMessage("..datatype: " + descDEM.dataType)
-        if (len(descDEM.extension) > 0):
-            messages.addMessage("..extension: " + descDEM.extension)
-        DEM = descDEM.path + "\\" + descDEM.name
+        printDEMInfo(descDEM, messages)
+
+        length = parameters[1].valueAsText
+        makeGrad = parameters[2].value
+        makePlan = parameters[3].value
+        makeProf = parameters[4].value
+        makeDev = parameters[5].value
+        resample = parameters[6].value
+        interval = parameters[7].value
         
         if parameters[8].value:
             scratchPath = parameters[8].valueAsText.strip(" ")
         else:
             scratchPath = descDEM.path
-        
         if not scratchPath.endswith("\\"):
             scratchPath = scratchPath + "\\"
-            
         messages.addMessage("Scratch folder: " + scratchPath)
-                
-        killRasterList = []
-
+        
         if descDEM.extension != "flt":
-            inraster = descDEM.path + "\\" + descDEM.name
-            outraster = scratchPath + descDEM.basename + ".flt"
-            if not netstream.isflt(outraster):
-                arcpy.RasterToFloat_conversion(inraster, outraster)
-                killRasterList.append(outraster)
-            DEM = outraster
-            
-        if parameters[1].value:
-            length = parameters[1].valueAsText
-            sr = descDEM.spatialReference
-            DEM_cellSize = descDEM.children[0].meanCellHeight
-            DEM_unitScale = sr.metersPerUnit
-            DEM_unitName = sr.linearUnitName
-            adjustedLength = float(length)/(DEM_unitScale)
-
-        messages.addMessage("Length scale (m): " + length)
-        messages.addMessage("Conversion rate (m/DEM unit): " + str(DEM_unitScale))
-        messages.addMessage("Adjusted length scale (" + DEM_unitName + "): " + str(adjustedLength))
-            
-        rasters = {}
+            DEM = convertRasterToFlt(descDEM, scratchPath)
         
-        if parameters[2].value:
-            gradRaster = descDEM.path + '\\grad_' + length
-            rasters["Grad"] = gradRaster
-            messages.addMessage("Creating gradient raster")
-            messages.addMessage("  " + gradRaster)
-            
-        if parameters[3].value:
-            planRaster = descDEM.path + '\\plan_' + length
-            rasters["Plan"] = planRaster
-            messages.addMessage("Creating plan curvature raster")
-            messages.addMessage("  " + planRaster)
-        
-        if parameters[4].value:
-            profRaster = descDEM.path + '\\prof_' + length
-            rasters["Prof"] = profRaster
-            messages.addMessage("Creating profile curvature raster")
-            messages.addMessage("  " + profRaster)
-            
-        if parameters[5].value:
-            devRaster = descDEM.path + '\\dev_' + length
-            devParams = {}
-            devParams["Raster"] = devRaster
-            if parameters[6].value:
-                devParams["Resample"] = parameters[6].ValueAsText
-            if parameters[7].value:
-                devParams["Interval"] = parameters[7].ValueAsText
-            rasters["Dev"] = devParams
-            
-        if parameters[9].value:
+        if parameters[9].enabled and parameters[9].value:
             executablePath = parameters[9].ValueAsText
         else:
-            executablePath = workingDir
-                
-        inputfilename = str(scratchPath) + "\\input_makeGrids.txt"
-        inputfile = open(inputfilename, 'w')
-        inputfile.write("# Input file for MakeGrids\n")
-        inputfile.write("#    Created by ArcGIS python tool Surface Metrics\n")
-        inputfile.write("#      on " + time.asctime() + "\n")
-        if DEM.index(".flt") > 1:
-            inputfile.write("DEM: " + DEM[:-4] + "\n")
-        else:
-            inputfile.write("DEM: " + DEM + "\n")
-        inputfile.write("SCRATCH DIRECTORY: " + scratchPath + "\n")
-        inputfile.write("LENGTH SCALE: " + str(adjustedLength) + "\n")
-        
-        if "Grad" in rasters:
-            inputfile.write("GRID: GRADIENT, OUTPUT FILE = " +  rasters.get("Grad") + "\n")
-                
-        if "Plan" in rasters:
-            inputfile.write("GRID: PLAN CURVATURE, OUTPUT FILE = " + rasters.get("Plan") + "\n")
-                
-        if "Prof" in rasters:
-            inputfile.write("GRID: PROFILE CURVATURE, OUTPUT FILE = " + rasters.get("Prof") + "\n")
-            
-        if executablePath.endswith("\\"):
-            command = executablePath + "makegrids "
-        else:
-            command = executablePath + "\\" + "makegrids "
-        
-        inputFileName = scratchPath + "input_makeGrids.txt"
-        inputfile.write(command + "\n")
-        inputfile.write(inputFileName)
-        
-        inputfile.close()      
-        
+            executablePath = os.getcwd
+
+        adjustedLength = convertLength(length, descDEM, messages)
+
+        requestedRasters = makeRasterList(
+            descDEM, 
+            length, 
+            grad=makeGrad, 
+            plan=makePlan, 
+            prof=makeProf, 
+            dev=makeDev,
+            messages=messages
+        )
+
+        # Create input file and run makegrids
+        command = executablePath + ("" if executablePath.endswith("\\") else "\\") + "makegrids"
+        inputfilename = writeInputFileMG(DEM, adjustedLength, requestedRasters, scratchPath, command, self.label)
         try:
-            subprocess.call([command,inputFileName])
+            subprocess.call([command,inputfilename])
         except OSError:
             messages.addErrorMessage('MakeGrids failed')
-                
-        if "Dev" in rasters:
-            inputfilename = str(scratchPath) + "\\input_localRelief.txt"
+        
+
+        if "Dev" in requestedRasters:
+            inputfilename = str(scratchPath) + "input_localRelief.txt"
             inputfile = open(inputfilename, 'w')
             inputfile.write("# Input file for LocalRelief\n")
-            inputfile.write("#    Created by ArcGIS python tool Surface Metrics\n")
+            inputfile.write("#    Created by ArcGIS python tool +" + self.label + "\n")
             inputfile.write("#      on " + time.asctime() + "\n")
             if DEM.index(".flt") > 1:
                 inputfile.write("DEM: " + DEM[:-4] + "\n")
@@ -329,25 +264,379 @@ class SurfaceMetrics(object):
             inputfile.write("SCRATCH DIRECTORY: " + scratchPath + "\n")
             radius = float(adjustedLength)/2.
             inputfile.write("RADIUS: " + str(radius) + "\n")
-            devParam = rasters["Dev"]
-            if "Resample" in devParam:
-                inputfile.write("DOWN SAMPLE: " + devParam["Resample"] + "\n")
-            if "Interval" in devParam:
-                inputfile.write("SAMPLE INTERVAL: " + devParam["Interval"] + "\n")
-            inputfile.write("OUTPUT DEV RASTER: " + devParam["Raster"] + "\n")
+            if resample:
+                inputfile.write("DOWN SAMPLE: " + resample + "\n")
+            if interval:
+                inputfile.write("SAMPLE INTERVAL: " + resample + "\n")
+            inputfile.write("OUTPUT DEV RASTER: " + requestedRasters["Dev"] + "\n")
         
             inputfile.close()     
             
-            if executablePath.endswith("\\"):
-                command = executablePath + "localRelief "
-            else:
-                command = executablePath + "\\" + "localRelief "
-            
-            inputFileName = scratchPath + "input_localRelief.txt"     
+            command = executablePath + ("" if executablePath.endswith("\\") else "\\") + "localRelief"
  
             try:
-                subprocess.run([command, inputFileName])
+                subprocess.run([command, inputfilename])
             except OSError:
                 messages.addErrorMessage('LocalRelief failed')
+        return
+
+class TopographicWetnessIndex(object):
+    def __init__(self):
+        """"------------------------------------------------------------------------------------------------
+        Tool Name: Topographic Wetness Index
+        Version: 1.0.0, python 3.6.6, ArcGIS Pro
+        Author: Daniel Lorigan, 2019
+        Required arguments:
+            
+        Optional Arguments:
+            
+        Description: 
+        -------------------------------------------------------------------------------------------------"""
+        self.label = "Topographic Wetness Index"
+        self.description = "Calculate topographic wetness index"
+        self.canRunInBackground = False
+#------------------------------------------------------------------------------------------------------------
+    def getParameterInfo(self):
+        """Define parameter definitions""" 
         
-        return 
+        param0 = arcpy.Parameter(
+            displayName="Input DEM",
+            name="DEM",
+            datatype="DERasterDataset",
+            parameterType="Required",
+            direction="Input"
+        ) 
+        
+        param1 = arcpy.Parameter(
+            displayName = "Length Scale (m)",
+            name = "Length Scale",
+            datatype = "String",
+            parameterType = "Required",
+            direction = "Input"
+        )
+        
+        param2 = arcpy.Parameter(
+            displayName = "Existing gradient raster",
+            name = "grad",
+            datatype = "DERasterDataset",
+            parameterType = "Optional",
+            direction = "Input"
+        )
+
+        param3 = arcpy.Parameter(
+            displayName = "Existing plan curvature raster",
+            name = "plan",
+            datatype = "DERasterDataset",
+            parameterType = "Optional",
+            direction = "Input"
+        )
+
+        param4 = arcpy.Parameter(
+            displayName = "Existing B contour raster",
+            name = "bcon",
+            datatype = "DERasterDataset",
+            parameterType = "Optional",
+            direction = "Input"
+        )
+
+        param5 = arcpy.Parameter(
+            name = 'Scratch',
+            displayName = 'Scratch Folder',
+            datatype = 'DEFolder',
+            parameterType = 'Optional',
+            direction = 'Input'
+        )
+        
+        param6 = arcpy.Parameter(
+            name = 'executablePath',
+            displayName = 'Path to executable files',
+            datatype = 'DEFolder',
+            parameterType = 'Optional',
+            direction = 'Input',
+            enabled = True
+        )
+        
+        params = [param0, param1, param2, param3, param4, param5, param6]
+    #   0 = DEM
+    #   1 = LengthScale
+    #   2 = Gradient raster
+    #   3 = Plan Curvature raster
+    #   4 = B Contour raster
+    #   5 = Scratch directory
+    #   6 = executable Path
+        return params
+
+    def isLicensed(self):
+        """Set whether tool is licensed to execute."""
+        return True
+
+    def updateParameters(self, parameters):
+        """Modify the values and properties of parameters before internal
+        validation is performed.  This method is called whenever a parameter
+        has been changed."""
+
+        if parameters[5].value:
+            scratchDir = parameters[5].valueAsText
+        else:
+            scratchDir = os.getcwd()
+
+        # Check if makegrids is in scratch directory
+        foundMakeGrids = findFile("MakeGrids.exe", scratchDir)
+        
+        if not foundMakeGrids:
+            parameters[6].enabled = True
+        else:
+            parameters[6].enabled = False
+        return
+
+    def updateMessages(self, parameters):
+        """Modify the messages created by internal validation for each tool
+        parameter.  This method is called after internal validation."""
+        # Generate error message if exe path doesn't contain proper files or is expected and missing,
+        # otherwise clear any errors
+        errormsg = ""
+        if parameters[6].enabled:
+            exedir = parameters[6].valueAsText
+            if exedir:
+                # Check if makegrids is in scratch directory
+                foundMakeGrids = findFile("MakeGrids.exe", exedir)
+                if not foundMakeGrids:
+                    errormsg += "Unable to find MakeGrids.exe in " + exedir + "\n"
+
+                foundBuildGrids = findFile("BuildGrids.exe", exedir)
+                if not foundBuildGrids:
+                    errormsg += "Unable to find BuildGrids.exe in " + exedir + "\n"
+            else:
+                errormsg += "Unable to locate both MakeGrids.exe and BuildGrids.exe in scratch/working directory.\n"
+            if len(errormsg) > 0:
+                    errormsg += "Enter a valid path to the files.\n"
+                    parameters[6].setErrorMessage(errormsg)
+            else:
+                parameters[6].clearMessage()
+        else:
+            parameters[6].clearMessage()
+        return           
+                
+    def execute(self, parameters, messages):
+        """The source code of the tool."""
+        DEM = parameters[0].valueAsText
+        descDEM = arcpy.Describe(parameters[0].value)
+        printDEMInfo(descDEM, messages)
+        name = descDEM.basename
+        DEMID = name[name.rfind('_')+1:len(name)]
+        DEMunits = "m" if descDEM.spatialReference.metersPerUnit == 1.0 else "f"
+
+        length = parameters[1].valueAsText
+        grad = parameters[2].valueAsText
+        plan = parameters[3].valueAsText
+        bcon = parameters[4].valueAsText
+
+        if parameters[5].value:
+            scratchPath = parameters[5].valueAsText.strip(" ")
+        else:
+            scratchPath = descDEM.path
+        if not scratchPath.endswith("\\"):
+            scratchPath = scratchPath + "\\"
+        messages.addMessage("Scratch folder: " + scratchPath)
+        if descDEM.extension != "flt":
+            DEM = convertRasterToFlt(descDEM, scratchPath)
+        
+        if parameters[6].enabled and parameters[6].value:
+            executablePath = parameters[6].ValueAsText
+        else:
+            executablePath = os.getcwd
+
+        adjustedLength = convertLength(length, descDEM, messages)
+
+        rasters = makeRasterList(
+            descDEM, 
+            length, 
+            grad=(grad is None),
+            plan=(plan is None),
+            bcon=(bcon is None),
+            messages=messages
+        )
+
+        if len(rasters) > 0:
+            # Create input file and run makegrids
+            command = executablePath + ("" if executablePath.endswith("\\") else "\\") + "makegrids"
+            inputfilename = writeInputFileMG(DEM, adjustedLength, rasters, scratchPath, command, self.label)
+            try:
+                subprocess.call([command,inputfilename])
+            except OSError:
+                messages.addErrorMessage('MakeGrids failed')
+        
+        inputfilename = str(scratchPath) + "input_buildGrids.txt"
+        inputfile = open(inputfilename, 'w')
+        inputfile.write("# Input file for BuildGrids\n")
+        inputfile.write("#    Created by ArcGIS python tool +" + self.label + "\n")
+        inputfile.write("#      on " + time.asctime() + "\n")
+        if DEM.index(".flt") > 1:
+            inputfile.write("DEM: " + DEM[:-4] + "\n")
+        else:
+            inputfile.write("DEM: " + DEM + "\n")
+        inputfile.write("DEMID: " + DEMID + "\n")
+        inputfile.write("DEM UNITS: " + DEMunits + "\n")
+        inputfile.write("LENGTH SCALE: " + length + "\n")
+        inputfile.write("SCRATCH: " + scratchPath + "\n")
+        inputfile.write("AREA SLOPE THRESHOLD LOW GRADIENT: 30.\n")
+        inputfile.write("AREA SLOPE THRESHOLD HIGH GRADIENT: 60.\n")
+        inputfile.write("PLAN CURVATURE THRESHOLD LOW GRADIENT: 100000.15\n")
+        inputfile.write("PLAN CURVATURE THRESHOLD HIGH GRADIENT: 100000.3\n")
+        gradpath = grad if grad else rasters.get("Grad")
+        inputfile.write("GRADIENT FILE: " + gradpath + "\n")
+        planpath = plan if plan else rasters.get("Plan")
+        inputfile.write("PLAN CURVATURE FILE: " + planpath + "\n")
+        bconpath = bcon if bcon else rasters.get("Bcon")
+        inputfile.write("BCON FILE: " + bconpath + "\n")
+
+        inputfile.close()
+        
+        command = executablePath + ("" if executablePath.endswith("\\") else "\\") + "buildgrids"
+        try:
+            subprocess.run([command, inputfilename])
+        except OSError:
+            messages.addErrorMessage('BuildGrids failed')
+            raise
+
+        accpath = scratchPath + "accum_" + DEMID + ".flt"
+        TWI = sa.Ln(sa.Divide(accpath, gradpath))
+        out_path = descDEM.path + "\\twi_" + length + ".tif"
+        TWI.save(out_path)
+        return
+
+#############################################################################
+####### Helper functions ####################################################
+#############################################################################
+
+# Print DEM info messages
+# In: DEM description
+# Out: DEM path
+def printDEMInfo(desc, messages):
+    workingDir = os.getcwd()
+    filepath = desc.path + "\\" + desc.name
+    messages.addMessage("Working directory: " + workingDir)
+    messages.addMessage("DEM: " + filepath)
+    messages.addMessage("..datatype: " + desc.dataType)
+    if len(desc.extension) > 0:
+        messages.addMessage("..extension: " + desc.extension)
+    return filepath
+
+# Convert raster to .flt
+# In: DEM description, scratch path
+# Out: Converted DEM
+def convertRasterToFlt(desc, scratchPath):
+    inraster = desc.path + "\\" + desc.name
+    outraster = scratchPath + desc.basename + ".flt"
+    if not netstream.isflt(outraster):
+        arcpy.RasterToFloat_conversion(inraster, outraster)
+    return outraster
+
+# Convert input length to raster's units
+# In: length scale, DEM description, {messages}
+# Out: Converted length scale
+def convertLength(length, desc, messages=None):
+    sr = desc.spatialReference
+    cellSize = desc.children[0].meanCellHeight
+    unitScale = sr.metersPerUnit
+    unitName = sr.linearUnitName
+    adjustedLength = float(length)/(unitScale)
+    if messages:
+        messages.addMessage("Length scale (m): " + length)
+        messages.addMessage("Conversion rate (m/DEM unit): " + str(unitScale))
+        messages.addMessage("Adjusted length scale (" + unitName + "): " + str(adjustedLength))
+    return adjustedLength
+
+# Create list of requested raster filepaths
+# In: DEM description, length scale, {make path to: grad, plan, prof, bcon, dev rasters}, {resample}, {interval}
+# Out: List of paths to rasters and input for dev raster
+def makeRasterList(desc, length, grad=False, plan=False, prof=False, bcon=False, dev=False, messages=None):
+    rasters = {}
+    
+    if grad:
+        gradRaster = desc.path + '\\grad_' + length
+        rasters["Grad"] = gradRaster
+        if messages:
+            messages.addMessage("Creating gradient raster")
+            messages.addMessage("  " + gradRaster)
+        
+    if plan:
+        planRaster = desc.path + '\\plan_' + length
+        rasters["Plan"] = planRaster
+        if messages:
+            messages.addMessage("Creating plan curvature raster")
+            messages.addMessage("  " + planRaster)
+    
+    if prof:
+        profRaster = desc.path + '\\prof_' + length
+        rasters["Prof"] = profRaster
+        if messages:
+            messages.addMessage("Creating profile curvature raster")
+            messages.addMessage("  " + profRaster)
+    
+    if bcon:
+        bconRaster = desc.path + '\\bcon_' + length
+        rasters["Bcon"] = bconRaster
+        if messages:
+            messages.addMessage("Creating BContour raster")
+            messages.addMessage("  " + bconRaster)
+
+    if dev:
+        devRaster = desc.path + '\\dev_' + length
+        rasters["Dev"] = devRaster
+        if messages:
+            messages.addMessage("Creating local deviation raster")
+            messages.addMessage("  " + devRaster)
+    return rasters
+
+# Create the MakeGrids input file
+# In: DEM, length scale, raster path list, scratch directory, full path of the MakeGrids executable, {toolname}
+# Out: the input file name used when calling MakeGrids
+def writeInputFileMG(DEM, length, rasters, scratchPath, executable, toolName=None):
+    inputfilename = scratchPath + "input_makeGrids.txt"
+    inputfile = open(inputfilename, 'w')
+    inputfile.write("# Input file for MakeGrids\n")
+    if toolName:
+        inputfile.write("#    Created by ArcGIS python tool " + toolName + "\n")
+    inputfile.write("#    on " + time.asctime() + "\n")
+    if DEM.index(".flt") > 1:
+        inputfile.write("DEM: " + DEM[:-4] + "\n")
+    else:
+        inputfile.write("DEM: " + DEM + "\n")
+    inputfile.write("SCRATCH DIRECTORY: " + scratchPath + "\n")
+    inputfile.write("LENGTH SCALE: " + str(length) + "\n")
+
+    if "Grad" in rasters:
+        inputfile.write("GRID: GRADIENT, OUTPUT FILE = " + rasters.get("Grad") + "\n")
+            
+    if "Plan" in rasters:
+        inputfile.write("GRID: PLAN CURVATURE, OUTPUT FILE = " + rasters.get("Plan") + "\n")
+            
+    if "Prof" in rasters:
+        inputfile.write("GRID: PROFILE CURVATURE, OUTPUT FILE = " + rasters.get("Prof") + "\n")
+    
+    if "Bcon" in rasters:
+        inputfile.write("GRID: BCONTOUR, OUTPUT FILE = " + rasters.get("Bcon") + "\n")
+
+    inputfile.write(executable + "\n")
+    inputfile.write(inputfilename)
+    inputfile.close()
+    return inputfilename
+
+# Checks that the file is in the specified directory
+# In: name of the file, path to the directory
+# Out: True if the file was found, False otherwise
+def findFile(filename, directory):
+    foundFile = False
+    try:
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if entry.is_file():
+                    if entry.name.find(filename) >= 0:
+                        foundFile = True
+                        break
+    except FileNotFoundError:
+        pass
+    finally:
+        return foundFile
+
