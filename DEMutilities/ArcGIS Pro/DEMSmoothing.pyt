@@ -109,7 +109,7 @@ def lengthToCells(length, desc, messages=None):
 
 def generateCircleFootprint(radius):
     diameter = int(radius*2) + 1
-    footprint = numpy.zeroes(shape=(diameter, diameter))
+    footprint = np.zeroes(shape=(diameter, diameter))
     Y, X = np.ogrid[:diameter, :diameter]
     dist_from_center = np.sqrt((X - radius)**2 + (Y - radius)**2)
     mask = dist_from_center <= radius
@@ -151,7 +151,7 @@ class PercentileFilter(object):
 
         param2 = arcpy.Parameter(
             displayName="Filter Radius (m)",
-            name="size",
+            name="radius",
             datatype="GPLong",
             parameterType="Required",
             direction="Input")
@@ -243,7 +243,7 @@ class GaussianFilter(object):
 
         param1 = arcpy.Parameter(
             displayName="Filter Radius (m)",
-            name="rad",
+            name="radius",
             datatype="GPLong",
             parameterType="Required",
             direction="Input")
