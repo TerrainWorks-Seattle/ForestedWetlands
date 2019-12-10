@@ -68,7 +68,8 @@ def saveNumpyArrayAsRaster(array, in_raster, out_path, messages=None):
         for y in range(0, in_raster.height, bs):
             for x in range(0, in_raster.width, bs):
                 blockLLx = in_raster.extent.XMin + x * in_raster.meanCellWidth
-                blockLLy = max([in_raster.extent.YMax - (y+bs) * in_raster.meanCellHeight, in_raster.extent.YMin])
+                blockLLy = max([in_raster.extent.YMax - (y+bs) * in_raster.meanCellHeight, \
+                                in_raster.extent.YMin])
 
                 blockRaster = arcpy.NumPyArrayToRaster(array[y:y+bs, x:x+bs],\
                             lower_left_corner=arcpy.Point(blockLLx, blockLLy),\
@@ -96,9 +97,28 @@ def saveRaster(raster, path, messages=None):
     raster.save(path)
     messages.addMessage("Saved raster to " + path)
 
+# Convert input length to raster's units
+# In: length scale, DEM description, {messages}
+# Out: Converted length scale
+def lengthToCells(length, desc, messages=None):
+    sr = desc.spatialReference
+    cellSize = desc.children[0].meanCellHeight
+    unitScale = sr.metersPerUnit
+    numCells = float(length)/(float(cellSize)*unitScale)
+    return numCells
+
+def generateCircleFootprint(radius):
+    diameter = int(radius*2) + 1
+    footprint = numpy.zeroes(shape=(diameter, diameter))
+    Y, X = np.ogrid[:diameter, :diameter]
+    dist_from_center = np.sqrt((X - radius)**2 + (Y - radius)**2)
+    mask = dist_from_center <= radius
+    footprint[mask] = 1
+    return footprint
+
 class PercentileFilter(object):
     def __init__(self):
-        """"------------------------------------------------------------------------------------------------
+        """"--------------------------------------------------------------------------
         Tool Name: Percentile Filter
         Version: 1.0.0, python 3.7, ArcGIS Pro
         Author: Daniel Lorigan, 2019
@@ -107,11 +127,11 @@ class PercentileFilter(object):
         Optional Arguments:
             
         Description:
-        -------------------------------------------------------------------------------------------------"""
+        ---------------------------------------------------------------------------"""
         self.label = "Percentile Filter"
         self.description = "Smooth DEM using Pth percentile neighbor values"
         self.canRunInBackground = False
-#-----------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------
     def getParameterInfo(self):
         """Define parameter definitions"""
         param0 = arcpy.Parameter(
@@ -130,7 +150,7 @@ class PercentileFilter(object):
             direction="Input")
 
         param2 = arcpy.Parameter(
-            displayName="Footprint size",
+            displayName="Filter Radius (m)",
             name="size",
             datatype="GPLong",
             parameterType="Required",
@@ -146,7 +166,7 @@ class PercentileFilter(object):
         params = [param0, param1, param2, param3]
         #   0 = DEM
         #   1 = Percentile value
-        #   2 = Footprint size
+        #   2 = Footprint radius
         #   3 = Output filename
         return params
 
@@ -159,11 +179,12 @@ class PercentileFilter(object):
         validation is performed.  This method is called whenever a parameter
         has been changed."""
         # Provide output file path as modified input file name
-        if not parameters[3].altered and parameters[0].value and parameters[1].value and parameters[2].value:
+        if not parameters[3].altered and parameters[0].value and parameters[1].value \
+            and parameters[2].value:
             DEMdesc = arcpy.Describe(parameters[0].value)
-            parameters[3].value =  DEMdesc.path +"\\" + DEMdesc.basename + "_PercSm"\
+            parameters[3].value =  DEMdesc.path +"\\" + DEMdesc.basename + "_perc"\
                 + "_p" + parameters[1].valueAsText\
-                + "_f" + parameters[2].valueAsText + ".tif"
+                + "_r" + parameters[2].valueAsText + ".tif"
         return
 
     def updateMessages(self, parameters):
@@ -184,16 +205,20 @@ class PercentileFilter(object):
         """The source code of the tool."""
         raster = rasterFromDEM(parameters[0], messages)
         lowerleft = arcpy.Point(raster.extent.XMin, raster.extent.YMin)
-        cellsize = arcpy.Describe(raster).children[0].meanCellHeight
+        descDEM = arcpy.Describe(raster)
+        cellsize = descDEM.children[0].meanCellHeight
+        radius = lengthToCells(parameters[2].value, descDEM, messages)
+        footprint = generateCircleFootprint(radius)
         in_array = rasterToNP(raster)
-        out_array = filters.percentile_filter(in_array, percentile=parameters[1].value,size=parameters[2].value)
+        out_array = filters.percentile_filter(in_array, percentile=parameters[1].value,\
+            footprint=footprint)
         saveNumpyArrayAsRaster(out_array, raster, parameters[3].valueAsText, messages)
         del raster
         return
 
 class GaussianFilter(object):
     def __init__(self):
-        """"------------------------------------------------------------------------------------------------
+        """"--------------------------------------------------------------------------
         Tool Name: Gaussian Filter
         Version: 1.0.0, python 3.7, ArcGIS Pro
         Author: Daniel Lorigan, 2019
@@ -202,11 +227,11 @@ class GaussianFilter(object):
         Optional Arguments:
             
         Description:
-        -------------------------------------------------------------------------------------------------"""
+        ---------------------------------------------------------------------------"""
         self.label = "Gaussian Filter"
         self.description = "Smooth DEM using a Gaussian kernel"
         self.canRunInBackground = False
-#-----------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------
     def getParameterInfo(self):
         """Define parameter definitions"""
         param0 = arcpy.Parameter(
@@ -217,9 +242,9 @@ class GaussianFilter(object):
             direction="Input")
 
         param1 = arcpy.Parameter(
-            displayName="Standard Deviation",
-            name="sdev",
-            datatype="GPDouble",
+            displayName="Filter Radius (m)",
+            name="rad",
+            datatype="GPLong",
             parameterType="Required",
             direction="Input")
 
@@ -242,7 +267,7 @@ class GaussianFilter(object):
         
         params = [param0, param1, param2, param3]
         #   0 = DEM
-        #   1 = Standard Deviation
+        #   1 = Filter Radius
         #   2 = Order
         #   3 = Output filename
         return params
@@ -258,8 +283,8 @@ class GaussianFilter(object):
         # Provide output file path as modified input file name
         if not parameters[3].altered and parameters[0].value and parameters[1].value:
             DEMdesc = arcpy.Describe(parameters[0].value)
-            parameters[3].value = DEMdesc.path +"\\" + DEMdesc.basename + "_GaussSm" \
-                + "_s" + parameters[1].valueAsText + ".tif"
+            parameters[3].value = DEMdesc.path +"\\" + DEMdesc.basename + "_gauss" \
+                + "_" + parameters[1].valueAsText + ".tif"
         return
 
     def updateMessages(self, parameters):
@@ -275,16 +300,20 @@ class GaussianFilter(object):
         """The source code of the tool."""
         raster = rasterFromDEM(parameters[0], messages)
         lowerleft = arcpy.Point(raster.extent.XMin, raster.extent.YMin)
-        cellsize = arcpy.Describe(raster).children[0].meanCellHeight
+        descDEM = arcpy.Describe(raster)
+        cellsize = descDEM.children[0].meanCellHeight
+        radius = lengthToCells(parameters[2].value, descDEM, messages)
+        sigma = radius/3.0
         in_array = rasterToNP(raster)
-        out_array = filters.gaussian_filter(in_array, sigma=parameters[1].value,order=parameters[2].value)
+        out_array = filters.gaussian_filter(in_array, sigma=parameters[1].value, \
+            order=parameters[2].value, truncate=3.0)
         saveNumpyArrayAsRaster(out_array, raster, parameters[3].valueAsText, messages)
         del raster
         return
 
 class AnisotropicFilter(object):
     def __init__(self):
-        """"------------------------------------------------------------------------------------------------
+        """"--------------------------------------------------------------------------
         Tool Name: Anisotropic Filter
         Version: 1.0.0, python 3.7, ArcGIS Pro
         Author: Daniel Lorigan, 2019
@@ -293,11 +322,11 @@ class AnisotropicFilter(object):
         Optional Arguments:
             
         Description:
-        -------------------------------------------------------------------------------------------------"""
+        ---------------------------------------------------------------------------"""
         self.label = "Anisotropic Filter"
         self.description = "Smooth DEM using Perona-Malik anisotropic diffusion"
         self.canRunInBackground = False
-#-----------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------
     def getParameterInfo(self):
         """Define parameter definitions"""
 
@@ -383,7 +412,7 @@ class AnisotropicFilter(object):
         # Provide output file path as modified input file name
         if not parameters[7].altered and parameters[0].value and parameters[1].value:
             DEMdesc = arcpy.Describe(parameters[0].value)
-            parameters[7].value = DEMdesc.path + "\\" + DEMdesc.basename + "_AnisoSm" \
+            parameters[7].value = DEMdesc.path + "\\" + DEMdesc.basename + "_aniso" \
                 + "_i" + parameters[1].valueAsText + ".tif"
         if parameters[2].value:
             parameters[3].enabled = False
@@ -405,7 +434,8 @@ class AnisotropicFilter(object):
                 "Output +" + parameters[5].value + " exists. It will be overwritten.")
         if not parameters[2].value and not parameters[3].value:
             parameters[3].setErrorMessage(
-                "A value for K must be provided when estimation is turned off. Please enter a value.")
+                "A value for K must be provided when estimation is turned off.\
+                     Please enter a value.")
         if parameters[2].value and parameters[6].value:
             parameters[6].setWarningMessage(
                 "Enabling this parameter can significantly impact performance."
@@ -502,18 +532,20 @@ def anisodiff(in_array, iters, k=None, k2=None, s=None, estimate_each=False, cel
 def calcThreshold(arr, s, messages=None):
     # Smooth raster to calculate slopes from
     arcpy.SetProgressorLabel("Applying preliminary gaussian filter")
-    arr = filters.gaussian_filter(arr, sigma=s, order=0)
+    arr = filters.gaussian_filter(arr, sigma=s, order=0, truncate=3.0)
 
     arcpy.SetProgressorLabel("Estimating threshold")
     # Find optimal N/S threshold
     diff = np.diff(arr, axis=0)
-    hist, bin_edges = np.histogram(diff[~np.isnan(diff)], bins=50, range=(np.nanmin(diff), np.nanmax(diff)))
+    hist, bin_edges = np.histogram(diff[~np.isnan(diff)], bins=50, \
+        range=(np.nanmin(diff), np.nanmax(diff)))
     threshold = findKnee(hist)
     kS = bin_edges[threshold]
 
     # Find optimal E/W threshold
     diff = np.diff(arr, axis=1)
-    hist, bin_edges = np.histogram(diff[~np.isnan(diff)], bins=50, range=(np.nanmin(diff), np.nanmax(diff)))
+    hist, bin_edges = np.histogram(diff[~np.isnan(diff)], bins=50, \
+        range=(np.nanmin(diff), np.nanmax(diff)))
     threshold = findKnee(hist)
     kE = bin_edges[threshold]
 
