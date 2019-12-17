@@ -142,31 +142,32 @@ class SurfaceMetrics(object):
         """Modify the values and properties of parameters before internal
         validation is performed.  This method is called whenever a parameter
         has been changed."""
-        if parameters[8].value:
-            scratchDir = parameters[8].valueAsText
-        else:
-            scratchDir = os.getcwd()
-
-        # Check that makegrids.exe is accessible if needed
-        foundMakeGrids = True
-        if parameters[2].value or parameters[3].value or parameters[4].value:
-            # Check if makegrids is in scratch directory
-            foundMakeGrids = findFile("MakeGrids.exe", scratchDir)
-        # If local elevation deviation is requested, get resampling parameters
-        foundLocalRelief = True
         if parameters[5].value:
             parameters[6].enabled = True
             parameters[7].enabled = True
-            # Check if localrelief is accessible
-            foundLocalRelief = findFile("LocalRelief.exe", scratchDir)
         else:
             parameters[6].enabled = False
             parameters[7].enabled = False
-        
-        if not foundMakeGrids or not foundLocalRelief:
-            parameters[9].enabled = True
-        else:
-            parameters[9].enabled = False
+
+        if parameters[0].value or parameters[8].value:
+            if parameters[8].value:
+                scratchDir = parameters[8].valueAsText
+            elif parameters[0].value:
+                scratchDir = arcpy.Describe(parameters[0].value).path
+
+            # Check that MakeGrids.exe is in the scratch directory
+            foundMakeGrids = True
+            if parameters[2].value or parameters[3].value or parameters[4].value:
+                foundMakeGrids = findFile("MakeGrids.exe", scratchDir)
+            # If local elevation deviation is requested, check for LocalRelief.exe
+            foundLocalRelief = True
+            if parameters[5].value:
+                foundLocalRelief = findFile("LocalRelief.exe", scratchDir)
+            
+            if not foundMakeGrids or not foundLocalRelief:
+                parameters[9].enabled = True
+            else:
+                parameters[9].enabled = False
         return
 
     def updateMessages(self, parameters):
@@ -190,7 +191,7 @@ class SurfaceMetrics(object):
                     if not foundLocalRelief:
                         errormsg += "Unable to find LocalRelief.exe in " + exedir + "\n"
             else:
-                errormsg += "Unable to locate both MakeGrids.exe and LocalRelief.exe in scratch/working directory.\n"
+                errormsg += "Unable to locate both MakeGrids.exe and LocalRelief.exe in scratch location.\n"
             if len(errormsg) > 0:
                     errormsg += "Enter a valid path to the files.\n"
                     parameters[9].setErrorMessage(errormsg)
@@ -232,7 +233,7 @@ class SurfaceMetrics(object):
 
         adjustedLength = convertLength(length, descDEM, messages)
 
-        rasters = makeRasterList(
+        requestedRasters = makeRasterList(
             descDEM, 
             length, 
             grad=makeGrad, 
@@ -244,14 +245,14 @@ class SurfaceMetrics(object):
 
         # Create input file and run makegrids
         command = executablePath + ("" if executablePath.endswith("\\") else "\\") + "makegrids"
-        inputfilename = writeInputFileMG(DEM, adjustedLength, rasters, scratchPath, command, self.label)
+        inputfilename = writeInputFileMG(DEM, adjustedLength, requestedRasters, scratchPath, command, self.label)
         try:
             subprocess.call([command,inputfilename])
         except OSError:
             messages.addErrorMessage('MakeGrids failed')
         
 
-        if "Dev" in rasters:
+        if "Dev" in requestedRasters:
             inputfilename = str(scratchPath) + "input_localRelief.txt"
             inputfile = open(inputfilename, 'w')
             inputfile.write("# Input file for LocalRelief\n")
@@ -268,7 +269,7 @@ class SurfaceMetrics(object):
                 inputfile.write("DOWN SAMPLE: " + resample + "\n")
             if interval:
                 inputfile.write("SAMPLE INTERVAL: " + resample + "\n")
-            inputfile.write("OUTPUT DEV RASTER: " + rasters["Dev"] + "\n")
+            inputfile.write("OUTPUT DEV RASTER: " + requestedRasters["Dev"] + "\n")
         
             inputfile.close()     
             
@@ -353,7 +354,7 @@ class TopographicWetnessIndex(object):
             datatype = 'DEFolder',
             parameterType = 'Optional',
             direction = 'Input',
-            enabled = True
+            enabled = False
         )
         
         params = [param0, param1, param2, param3, param4, param5, param6]
@@ -374,19 +375,19 @@ class TopographicWetnessIndex(object):
         """Modify the values and properties of parameters before internal
         validation is performed.  This method is called whenever a parameter
         has been changed."""
+        if parameters[0].value or parameters[5].value:
+            if parameters[5].value:
+                scratchDir = parameters[5].valueAsText
+            elif parameters[0].value:
+                scratchDir = arcpy.Describe(parameters[0].value).path
 
-        if parameters[5].value:
-            scratchDir = parameters[5].valueAsText
-        else:
-            scratchDir = os.getcwd()
-
-        # Check if makegrids is in scratch directory
-        foundMakeGrids = findFile("MakeGrids.exe", scratchDir)
-        
-        if not foundMakeGrids:
-            parameters[6].enabled = True
-        else:
-            parameters[6].enabled = False
+            # Check if makegrids is in scratch directory
+            foundMakeGrids = findFile("MakeGrids.exe", scratchDir)
+            
+            if not foundMakeGrids:
+                parameters[6].enabled = True
+            else:
+                parameters[6].enabled = False
         return
 
     def updateMessages(self, parameters):
@@ -407,7 +408,7 @@ class TopographicWetnessIndex(object):
                 if not foundBuildGrids:
                     errormsg += "Unable to find BuildGrids.exe in " + exedir + "\n"
             else:
-                errormsg += "Unable to locate both MakeGrids.exe and BuildGrids.exe in scratch/working directory.\n"
+                errormsg += "Unable to find both MakeGrids.exe and BuildGrids.exe in scratch location\n"
             if len(errormsg) > 0:
                     errormsg += "Enter a valid path to the files.\n"
                     parameters[6].setErrorMessage(errormsg)
@@ -436,7 +437,7 @@ class TopographicWetnessIndex(object):
         else:
             scratchPath = descDEM.path
         if not scratchPath.endswith("\\"):
-            scratchPath = scratchPath + "\\"      
+            scratchPath = scratchPath + "\\"
         messages.addMessage("Scratch folder: " + scratchPath)
         if descDEM.extension != "flt":
             DEM = convertRasterToFlt(descDEM, scratchPath)
@@ -451,9 +452,9 @@ class TopographicWetnessIndex(object):
         rasters = makeRasterList(
             descDEM, 
             length, 
-            grad=(grad is None), 
-            plan=(plan is None), 
-            bcon=(bcon is None), 
+            grad=(grad is None),
+            plan=(plan is None),
+            bcon=(bcon is None),
             messages=messages
         )
 
@@ -499,7 +500,7 @@ class TopographicWetnessIndex(object):
             messages.addErrorMessage('BuildGrids failed')
             raise
 
-        accpath = scratchPath + "\\" + "accum_" + DEMID + ".flt"
+        accpath = scratchPath + "accum_" + DEMID + ".flt"
         TWI = sa.Ln(sa.Divide(accpath, gradpath))
         out_path = descDEM.path + "\\twi_" + length + ".tif"
         TWI.save(out_path)
@@ -632,7 +633,8 @@ def findFile(filename, directory):
         with os.scandir(directory) as entries:
             for entry in entries:
                 if entry.is_file():
-                    if entry.name.find(filename) >= 0:
+
+                    if entry.name == filename:
                         foundFile = True
                         break
     except FileNotFoundError:

@@ -15,7 +15,6 @@ import sys
 import scipy.ndimage.filters as filters
 import numpy as np
 from numpy import matlib
-import multiprocessing
 
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 import netstream
@@ -63,7 +62,7 @@ def saveNumpyArrayAsRaster(array, in_raster, out_path, messages=None):
         saveRaster(out_raster, out_path, messages)
         del out_raster
     except RuntimeError:
-        bs = 8192
+        bs = 8192           # ~.54 GB per block (8192^2 * 64)
         blockfilelist = []
         blockNum = 0
         for y in range(0, in_raster.height, bs):
@@ -174,6 +173,11 @@ class PercentileFilter(object):
             parameters[3].setWarningMessage(
                 "Output +" + parameters[3].value + " exists. It will be overwritten."
             )
+        if parameters[1].value != None:
+            if parameters[1].value < 0 or parameters[1].value > 100:
+                parameters[1].setErrorMessage(
+                    "Percentile value must be an integer within [0, 100]."
+                )
         return
 
     def execute(self, parameters, messages):
@@ -237,7 +241,6 @@ class GaussianFilter(object):
             direction="Input")
         
         params = [param0, param1, param2, param3]
-        #   TODO: Organize parameters, combine where possible
         #   0 = DEM
         #   1 = Standard Deviation
         #   2 = Order
@@ -253,11 +256,10 @@ class GaussianFilter(object):
         validation is performed.  This method is called whenever a parameter
         has been changed."""
         # Provide output file path as modified input file name
-        if not parameters[3].altered and parameters[0].value and parameters[1].value and parameters[2].value:
+        if not parameters[3].altered and parameters[0].value and parameters[1].value:
             DEMdesc = arcpy.Describe(parameters[0].value)
             parameters[3].value = DEMdesc.path +"\\" + DEMdesc.basename + "_GaussSm" \
-                + "_s" + parameters[1].valueAsText \
-                + "_o" + parameters[2].valueAsText + ".tif"
+                + "_s" + parameters[1].valueAsText + ".tif"
         return
 
     def updateMessages(self, parameters):
@@ -345,20 +347,29 @@ class AnisotropicFilter(object):
             direction="Input")
         
         param6 = arcpy.Parameter(
+           displayName="Re-estimate K for each iteration",
+           name="estimate_each",
+           datatype="GPBoolean",
+           parameterType="Optional",
+           direction="Input")
+        param6.value = False
+
+        param7 = arcpy.Parameter(
             displayName="Output file name",
             name="outname",
             datatype="String",
             parameterType="Required",
             direction="Input")
 
-        params = [param0, param1, param2, param3, param4, param5, param6]
+        params = [param0, param1, param2, param3, param4, param5, param6, param7]
         #   0 = DEM
         #   1 = Iterations
         #   2 = Estimate K
         #   3 = K
         #   4 = K2
         #   5 = Sigma
-        #   6 = Output filename
+        #   6 = Estimate each
+        #   7 = Output filename
         return params
 
     def isLicensed(self):
@@ -370,18 +381,20 @@ class AnisotropicFilter(object):
         validation is performed.  This method is called whenever a parameter
         has been changed."""
         # Provide output file path as modified input file name
-        if not parameters[6].altered and parameters[0].value and parameters[1].value:
+        if not parameters[7].altered and parameters[0].value and parameters[1].value:
             DEMdesc = arcpy.Describe(parameters[0].value)
-            parameters[6].value = DEMdesc.path + "\\" + DEMdesc.basename + "_AnisoSm" \
+            parameters[7].value = DEMdesc.path + "\\" + DEMdesc.basename + "_AnisoSm" \
                 + "_i" + parameters[1].valueAsText + ".tif"
         if parameters[2].value:
             parameters[3].enabled = False
             parameters[4].enabled = False
             parameters[5].enabled = True
+            parameters[6].enabled = True
         else:
             parameters[3].enabled = True
             parameters[4].enabled = True
             parameters[5].enabled = False
+            parameters[6].enabled = False
         return
 
     def updateMessages(self, parameters):
@@ -392,7 +405,11 @@ class AnisotropicFilter(object):
                 "Output +" + parameters[5].value + " exists. It will be overwritten.")
         if not parameters[2].value and not parameters[3].value:
             parameters[3].setErrorMessage(
-                "A value for K is required when not being estimated. Please enter a value.")
+                "A value for K must be provided when estimation is turned off. Please enter a value.")
+        if parameters[2].value and parameters[6].value:
+            parameters[6].setWarningMessage(
+                "Enabling this parameter can significantly impact performance."
+            )
         return
 
     def execute(self, parameters, messages):
@@ -408,6 +425,7 @@ class AnisotropicFilter(object):
                     in_array,
                     iters=parameters[1].value,
                     s=parameters[5].value,
+                    estimate_each=parameters[6].value,
                     cellsize=cellsize,
                     messages=messages
                 )
@@ -423,7 +441,7 @@ class AnisotropicFilter(object):
 
         arcpy.SetProgressorLabel("Generating raster")
         arcpy.SetProgressorPosition(99)
-        saveNumpyArrayAsRaster(out_array, raster, parameters[6].valueAsText, messages)
+        saveNumpyArrayAsRaster(out_array, raster, parameters[7].valueAsText, messages)
         del raster
         return
 
@@ -433,10 +451,14 @@ class AnisotropicFilter(object):
 
 # Calculates anisotropic diffusion of input array using Perona-Malik method
 # in_array = input array, iters = number of iterations, k = edge threshold, gamma, s = optional sigma
-def anisodiff(in_array, iters, k=None, k2=None, s=None, cellsize=1.0, messages=None):
+def anisodiff(in_array, iters, k=None, k2=None, s=None, estimate_each=False, cellsize=1.0, messages=None):
     arcpy.SetProgressor("step")
     if k == None:
-        kS, kE = calcThreshold(in_array, s=s, messages=messages)
+        if s == None:
+            # Calculate an s from the input array
+            s = minimumSD(in_array, 64)
+            messages.addMessage("Using sigma = "+str(s))
+        kS, kE, s = calcThreshold(in_array, s=s, messages=messages)
     else:
         kS = k
         kE = k
@@ -456,54 +478,46 @@ def anisodiff(in_array, iters, k=None, k2=None, s=None, cellsize=1.0, messages=N
     cE = cS.copy()
     for i in range(iters):
         arcpy.SetProgressorPosition(i*100//iters)
-        # calculate the rise in south and east directions
+        # calculate the gradient in the south and east directions
         deltaS[:-1,: ] = np.diff(out_array,axis=0)
         deltaE[: ,:-1] = np.diff(out_array,axis=1)
         # Update matrices
         S = deltaS/(cellsize*(1.+(deltaS/kS)**2))
         E = deltaE/(cellsize*(1.+(deltaE/kE)**2))
-        # subtract a copy that has been shifted Northwest by one.
+        # subtract a copy that has been shifted Northwest by one to account for northern and western slope
         NS[:] = S
         EW[:] = E
         NS[1:,:] -= S[:-1,:]
         EW[:,1:] -= E[:,:-1]
         # update the image
         out_array += NS+EW
+        if k == None and estimate_each and i < iters-1:
+            kS, kE, s = calcThreshold(out_array, s=s, messages=messages)
+            messages.addMessage("Using k="+str(kS)+", k2="+str(kE))
     return out_array
 
 # Calculates and returns optimal k-values in South and East directions for the input raster.
 # arr = input array
 # s = sigma to use for raster smoothing: 0 is unsmoothed, -1 to generates a sigma based on min sigma of array
-def calcThreshold(arr, s=None, messages=None):
-    if s == None:
-        # Calculate an s from the input array
-        s = minimumSD(arr, 64)
-
+def calcThreshold(arr, s, messages=None):
     # Smooth raster to calculate slopes from
     arcpy.SetProgressorLabel("Applying preliminary gaussian filter")
     arr = filters.gaussian_filter(arr, sigma=s, order=0)
 
-    messages.addMessage("Using sigma = "+str(s))
-
     arcpy.SetProgressorLabel("Estimating threshold")
     # Find optimal N/S threshold
-    arcpy.SetProgressorPosition(0)
     diff = np.diff(arr, axis=0)
-    arcpy.SetProgressorPosition(10)
-    hist, bin_edges = np.histogram(diff[~np.isnan(diff)], bins=30, range=(np.nanmin(diff), np.nanmax(diff)))
+    hist, bin_edges = np.histogram(diff[~np.isnan(diff)], bins=50, range=(np.nanmin(diff), np.nanmax(diff)))
     threshold = findKnee(hist)
     kS = bin_edges[threshold]
 
     # Find optimal E/W threshold
-    arcpy.SetProgressorPosition(50)
     diff = np.diff(arr, axis=1)
-    arcpy.SetProgressorPosition(60)
-    hist, bin_edges = np.histogram(diff[~np.isnan(diff)], bins=30, range=(np.nanmin(diff), np.nanmax(diff)))
+    hist, bin_edges = np.histogram(diff[~np.isnan(diff)], bins=50, range=(np.nanmin(diff), np.nanmax(diff)))
     threshold = findKnee(hist)
     kE = bin_edges[threshold]
 
-    arcpy.SetProgressorPosition(100)
-    return kS, kE
+    return kS, kE, s
 
 # Finds the knee/elbow of a curve by finding the furthest point from a line spanning the curve.
 def findKnee(curve):

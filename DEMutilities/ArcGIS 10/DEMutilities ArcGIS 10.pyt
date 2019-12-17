@@ -37,7 +37,7 @@ class SurfaceMetrics(object):
             
         Optional Arguments:
             
-        Description: A set of tools for working with DEMs
+        Description: Calculates the slope, plan curvature, profile curvature and/or local relief of a DEM.
         -------------------------------------------------------------------------------------------------"""
         self.label = "Surface Metrics"
         self.description = "Calculate elevation derivatives"

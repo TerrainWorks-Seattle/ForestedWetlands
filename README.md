@@ -1,9 +1,9 @@
 # Forested Wetlands
-Here you'll find resources for building and applying statistical models for identifying potential wetland locations using ArcGIS. These resources include tools 
-- to use a Digital Elevation Model (DEM) to calculate topographic attributes associated with wetland formation,
-- to use a data set of point locations with known wetland presence or absence to build a random forest model to predict the probability of finding a wetland as a function of topographic and other attributes,
-- to test the model by applying it to new data sets,
-- and to use the model to predict wetland presence in other locations. 
+Here you'll find resources for building and applying statistical models for identifying potential wetland locations using ArcGIS. These resources include tools to:
+- use a Digital Elevation Model (DEM) to calculate topographic attributes associated with wetland formation,
+- use a data set of point locations with known wetland presence or absence to build a random forest model to predict the probability of finding a wetland as a function of topographic and other attributes,
+- test the model by applying it to new data sets,
+- use the model to predict wetland presence in other locations. 
 
 These tools and the methods they use were developed by Dan Miller at [TerrainWorks](http://www.terrainworks.com) and Meghan Halabisky at the University of Washington [Remote Sensing and Geospatial Analysis Lab](https://sites.uw.edu/rsgal/) as part of a wetland mapping project funded by the Cooperative Monitoring, Evaluation, and Research (CMER) Committee of the Washington Forest Practices Board and overseen by the Wetland Scientific Advisory Group (WetSAG). 
 
