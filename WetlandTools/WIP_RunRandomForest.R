@@ -214,10 +214,9 @@ tool_exec<- function(in_params, out_params){
   ### If test data provided, evaluate model using new data
   #####################################################################################################
   # Open the feature class with the training dataset points as a data frame
-  if (!is.null(testData) && testData != "NA") {
+  if (!is.null(testData) && is.na(testData)) {
   arc.progress_label("Running model on test data...")
-#-------------------------------------------------------------------------------
-# all this could go into a sourced R script
+    
     allPoints <- arc.open(testData)
   
     # Keep only the column with the input field that holds the wetland Class
@@ -247,7 +246,7 @@ tool_exec<- function(in_params, out_params){
     # Eliminate columns with coordinate values
     coords <- names(pointValues) %in% c("coords.x1","coords.x2")
     newdata <- pointValues[!coords]
-#----------------------------------------------------------------------------------
+
     # Change to generic column headings; the same headings will be used for using this RF model on other basins
     for (i in 2:length(newdata)) {
       names(newdata)[i] <- paste0("Raster",i-1)
@@ -260,7 +259,8 @@ tool_exec<- function(in_params, out_params){
   }
 
   # Build a probability raster, if requested
-  if (!is.null(outProbRaster) && outProbRaster != "NA") {
+  if (!is.null(outProbRaster) && !is.na(outProbRaster)) {
+    
     arc.progress_label("Creating probability raster")
     cat(paste0("Writing probabilities to ", outputProbRaster))
     probs <- suppressWarnings(predictInParts(rasters, rfclass, outProbRaster))
