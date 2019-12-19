@@ -258,7 +258,7 @@ tool_exec<- function(in_params, out_params){
   plotandsave(rfclass, paste0(modelName[1],'_rfclass'))
 
 # If an output probability raster is specified, create it 
-  if (!is.null(outputProbRaster) && outputProbRaster != "NA") {
+  if (!is.null(outputProbRaster) && !is.na(outputProbRaster)) {
     arc.progress_label("Creating probability raster...")
     
   # Rename layer names in the rasterstack to match the column names in the data frame used to train the model 
