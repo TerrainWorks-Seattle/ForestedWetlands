@@ -109,7 +109,7 @@ def lengthToCells(length, desc, messages=None):
 
 def generateCircleFootprint(radius):
     diameter = int(radius*2) + 1
-    footprint = np.zeroes(shape=(diameter, diameter))
+    footprint = np.zeros(shape=(diameter, diameter))
     Y, X = np.ogrid[:diameter, :diameter]
     dist_from_center = np.sqrt((X - radius)**2 + (Y - radius)**2)
     mask = dist_from_center <= radius
@@ -302,10 +302,10 @@ class GaussianFilter(object):
         lowerleft = arcpy.Point(raster.extent.XMin, raster.extent.YMin)
         descDEM = arcpy.Describe(raster)
         cellsize = descDEM.children[0].meanCellHeight
-        radius = lengthToCells(parameters[2].value, descDEM, messages)
-        sigma = radius/3.0
+        radius = lengthToCells(parameters[1].value, descDEM, messages)
+        sigma = float(radius)/3.0
         in_array = rasterToNP(raster)
-        out_array = filters.gaussian_filter(in_array, sigma=parameters[1].value, \
+        out_array = filters.gaussian_filter(in_array, sigma=sigma, \
             order=parameters[2].value, truncate=3.0)
         saveNumpyArrayAsRaster(out_array, raster, parameters[3].valueAsText, messages)
         del raster
