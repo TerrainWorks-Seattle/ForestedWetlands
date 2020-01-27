@@ -484,11 +484,11 @@ class TopographicWetnessIndex(object):
         inputfile.write("AREA SLOPE THRESHOLD HIGH GRADIENT: 60.\n")
         inputfile.write("PLAN CURVATURE THRESHOLD LOW GRADIENT: 100000.15\n")
         inputfile.write("PLAN CURVATURE THRESHOLD HIGH GRADIENT: 100000.3\n")
-        gradpath = grad if grad else rasters.get("Grad")
+        gradpath = grad if grad else rasters.get("Grad") + ".flt"
         inputfile.write("GRADIENT FILE: " + gradpath + "\n")
-        planpath = plan if plan else rasters.get("Plan")
+        planpath = plan if plan else rasters.get("Plan") + ".flt"
         inputfile.write("PLAN CURVATURE FILE: " + planpath + "\n")
-        bconpath = bcon if bcon else rasters.get("Bcon")
+        bconpath = bcon if bcon else rasters.get("Bcon") + ".flt"
         inputfile.write("BCON FILE: " + bconpath + "\n")
 
         inputfile.close()
