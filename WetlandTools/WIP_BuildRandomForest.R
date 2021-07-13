@@ -1,4 +1,4 @@
-tool_exec<- function(in_params, out_params){
+tool_exec <- function(in_params, out_params){
   
   #####################################################################################################  
   ### Check/Load Required Packages  
@@ -177,9 +177,6 @@ tool_exec<- function(in_params, out_params){
   #####################################################################################################
   arc.progress_label("Loading data...")
   
-  # Load the set of input rasters to a rasterstack
-  rasters <- stack(inputRasters)
-  
   # Open the feature class with the training dataset points as a data frame
   allPoints <- arc.open(inputPoints)
   
@@ -191,11 +188,15 @@ tool_exec<- function(in_params, out_params){
   
   # Translate to a spatial dataset
   points <- arc.data2sp(allPoints)
-
+  
+  # Load the set of input rasters to a rasterstack
+  rasters <- stack(inputRasters)
+  
   arc.progress_label("Extracting Data...")
   
   # Find the raster values at the point locations
-  pointValues <- extractInParts(rasters, points)
+  #pointValues <- extractInParts(rasters, points)
+  pointValues <- extract(rasters, points, method='bilinear') 
   
   arc.progress_label("Processing Data...")
   
@@ -257,14 +258,25 @@ tool_exec<- function(in_params, out_params){
   cat(paste0("..Model saved as ", modelName,"\n"))
   plotandsave(rfclass, paste0(modelName[1],'_rfclass'))
 
-# If an output probability raster is specified, create it 
-  if (!is.null(outputProbRaster) && !is.na(outputProbRaster)) {
+# If an output probability raster is specified, create it
+  getProb <- TRUE
+  if (is.null(outputProbRaster)) {
+    getProb <- FALSE
+  } else if (is.na(outputProbRaster)) {
+      getProb <- FALSE
+    } else 
+      lenName <- nchar(outputProbRaster)
+      if (lenName[1] < 1) {
+        getProb <- FALSE
+      }
+    
+  if (getProb) {
     arc.progress_label("Creating probability raster...")
     
   # Rename layer names in the rasterstack to match the column names in the data frame used to train the model 
     for (i in 1:nlayers(rasters)) {names(rasters)[i] <- paste0("Raster",i)}
     arc.progress_label("Creating probability raster")
-    cat(paste0("Writing probabilities to ", outputProbRaster))
+    cat(paste0("Writing probabilities to ", outputProbRaster,"\n"))
     probs <- suppressWarnings(predictInParts(rasters, rfclass, outputProbRaster))
     cat(paste0("Created GeoTiff probability raster ",outputProbRaster,"\n"))
     
@@ -304,3 +316,37 @@ tool_exec<- function(in_params, out_params){
   
   return(out_params)
  }  
+
+test_tool <- function(){
+  library(arcgisbinding)
+  arc.check_product()
+  setwd("c:/work/data/puyallup/")
+  temp = getwd()
+  out_dir = file.path(temp, "testout")
+  if (dir.exists(out_dir))
+  {
+    unlink(out_dir, recursive=TRUE)
+    Sys.sleep(1)
+  }
+  dir.create(out_dir)
+  
+  rasters <- list("grad_150.flt", "dev_150.flt", "plan_150.flt", "prof_150.flt")
+  tool_exec(
+    in_params = list(
+      workingDir = "c:/work/data/puyallup",
+      inputRasters = rasters,
+      inputPoints = "wetlandPnts.shp",
+      fieldName = "NEWCLASS",
+      isWet = "WET",
+      notWet = "UPL",
+      modelName = "test1",
+      calcStats = FALSE
+    ),
+    out_params = list(outputProbRaster="")
+  )
+}
+
+# Test the tool if running directly in R/RStudio:
+if (!exists("arc.env") || is.null(arc.env()$workspace)) {
+  test_tool()
+}
