@@ -44,8 +44,7 @@ tool_exec <- function(in_params, out_params) {
   fieldName <- in_params[[4]]        # Field within the feature class with the classification
   isWetLabel <- in_params[[5]]       # Class for is-a-wetland
   notWetLabel <- in_params[[6]]      # Class for not-a-wetland, thes could be expanded to allow multiple names
-  modelName <- in_params[[7]]        # File name for model stored to disk in working directory. 
-                                     # Model consists of two files, modelName.RFmodel and modelName.rasterList
+  modelName <- in_params[[7]]        # File name for model stored to disk in working directory.
   probRasterName <- out_params[[1]]
   
   # Validate parameters ------------------------------------------------------
@@ -57,7 +56,7 @@ tool_exec <- function(in_params, out_params) {
   ## Load classification points ----------------------------------------------
   
   setwd(workingDir)
-  cat(paste0("Current working directory: ", workingDir,"\n"))
+  print(paste0("Current working directory: ", workingDir))
   
   # Load the points training dataset
   allPoints <- terra::vect(inputPointsFile)
@@ -84,6 +83,10 @@ tool_exec <- function(in_params, out_params) {
   for (i in 2:length(rasterList)) {
     rasterStack <- c(rasterStack, rasterList[[i]])
   }
+  
+  # Save input raster names
+  rasterNames <- names(rasterStack)
+  save(rasterNames, file = paste0(modelName, "_rasters.RData"))
   
   # Extract point values -----------------------------------------------------
   
@@ -118,25 +121,25 @@ tool_exec <- function(in_params, out_params) {
     importance = TRUE
   )
   
-  # Log the model
-  capture.output(rfModel, file = paste0(probRasterName,"_rfmodel.txt"))
+  # Save the model
+  save(rfModel, file = paste0(modelName, "_model.RData"))
   
-  # Generate wetland probability raster --------------------------------------
-  
-  # Predict probability raster
-  probRaster <- terra::predict(
-    rasterStack,
-    rfModel,
-    na.rm = TRUE,
-    type = "prob"
-  )
-  
-  # Save probability raster
-  terra::writeRaster(
-    probRaster[[isWetLabel]],
-    filename = paste0(probRasterName,".tif"),
-    overwrite = TRUE
-  )
+  # # Generate wetland probability raster --------------------------------------
+  # 
+  # # Predict probability raster
+  # probRaster <- terra::predict(
+  #   rasterStack,
+  #   rfModel,
+  #   na.rm = TRUE,
+  #   type = "prob"
+  # )
+  # 
+  # # Save probability raster
+  # terra::writeRaster(
+  #   probRaster[[isWetLabel]],
+  #   filename = paste0(probRasterName,".tif"),
+  #   overwrite = TRUE
+  # )
   
   # Return -------------------------------------------------------------------
   
@@ -158,7 +161,7 @@ if (FALSE) {
       notWetLabel = "UPL",
       modelName = "puy"
     ),
-    out_params = list(probRasterName="prob_puyallup")
+    out_params = list(probRasterName="")
   )
   
   # Test in Mashel region
@@ -172,7 +175,7 @@ if (FALSE) {
       notWetLabel = "UPL",
       modelName = "mas"
     ),
-    out_params = list(probRasterName="prob_mashel")
+    out_params = list(probRasterName="")
   )
   
  }
