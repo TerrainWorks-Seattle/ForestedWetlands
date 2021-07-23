@@ -81,6 +81,8 @@ tool_exec <- function(in_params, out_params) {
     rasterStack <- c(rasterStack, rasterList[[i]])
   }
   
+  names(rasterStack) <- paste0("var", seq_len(terra::nlyr(rasterStack)))
+  
   # Generate wetland probability raster --------------------------------------
   
   # Predict probability raster

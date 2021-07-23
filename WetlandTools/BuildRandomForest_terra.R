@@ -111,6 +111,14 @@ tool_exec <- function(in_params, out_params) {
   # predictor variables
   pointValues$class <- factor(pointValues$class)
   
+  # Change all predictor variable names to be generic. The same names will be 
+  # used when applying this RF model to other regions
+  for (i in seq_along(pointValues)) {
+    if (names(pointValues[i]) != "class") {
+      names(pointValues)[i] <- paste0("var", i)
+    } 
+  }
+  
   # Build Random Forest model ------------------------------------------------
   
   # Build model to predict "class" from all the input raster variables
@@ -123,23 +131,6 @@ tool_exec <- function(in_params, out_params) {
   
   # Save the model
   save(rfModel, file = paste0(modelName, "_model.RData"))
-  
-  # # Generate wetland probability raster --------------------------------------
-  # 
-  # # Predict probability raster
-  # probRaster <- terra::predict(
-  #   rasterStack,
-  #   rfModel,
-  #   na.rm = TRUE,
-  #   type = "prob"
-  # )
-  # 
-  # # Save probability raster
-  # terra::writeRaster(
-  #   probRaster[[isWetLabel]],
-  #   filename = paste0(probRasterName,".tif"),
-  #   overwrite = TRUE
-  # )
   
   # Return -------------------------------------------------------------------
   
