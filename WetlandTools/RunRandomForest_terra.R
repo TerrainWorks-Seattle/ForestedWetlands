@@ -83,8 +83,6 @@ tool_exec <- function(in_params, out_params) {
   
   # Generate wetland probability raster --------------------------------------
   
-  rasterStack <- terra::crop(rasterStack, terra::ext(562420, 566350, 5206820, 5210140))
-  
   # Predict probability raster
   probRaster <- terra::predict(
     rasterStack,
