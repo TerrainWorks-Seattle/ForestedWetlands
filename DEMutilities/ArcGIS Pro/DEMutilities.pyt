@@ -279,6 +279,14 @@ class SurfaceMetrics(object):
                 subprocess.run([command, inputfilename])
             except OSError:
                 messages.addErrorMessage('LocalRelief failed')
+
+        # Reformat .flt rasters as .tif
+        for key in requestedRasters:
+            rasterPath = requestedRasters[key]
+            r = arcpy.Raster(rasterPath + '.flt')
+            r.save(rasterPath + '.tif')
+            os.remove(rasterPath + '.flt')
+            
         return
 
 class TopographicWetnessIndex(object):
@@ -387,7 +395,7 @@ class TopographicWetnessIndex(object):
             if not foundMakeGrids:
                 parameters[6].enabled = True
             else:
-                parameters[6].enabled = False
+                parameters[6].enabled = False        
         return
 
     def updateMessages(self, parameters):
