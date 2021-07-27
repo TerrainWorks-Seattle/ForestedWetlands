@@ -1,6 +1,6 @@
 tool_exec <- function(in_params, out_params) {
   
-  # ----- Install packages ---------------------------------------------------
+  # ----- Install required packages ------------------------------------------
   
   if (!requireNamespace("terra", quietly = TRUE))
     install.packages("terra", quiet = TRUE)
@@ -41,10 +41,10 @@ tool_exec <- function(in_params, out_params) {
   workingDir <- in_params[[1]]       # Working directory where model files will be stored
   inputRasterFiles <- in_params[[2]] # List of input raster filenames
   inputPointsFile <- in_params[[3]]  # Filename of point feature classified by wetland type
-  fieldName <- in_params[[4]]        # Field within the feature class with the classification
-  isWetLabel <- in_params[[5]]       # Class for is-a-wetland
-  notWetLabel <- in_params[[6]]      # Class for not-a-wetland, thes could be expanded to allow multiple names
-  modelName <- in_params[[7]]        # File name for model stored to disk in working directory.
+  fieldName <- in_params[[4]]        # Classification filed name within the point feature class
+  isWetLabel <- in_params[[5]]       # Classification label for is-a-wetland
+  notWetLabel <- in_params[[6]]      # Classification label for not-a-wetland, thes could be expanded to allow multiple names
+  modelName <- in_params[[7]]        # Name for the generated RF model
   probRasterName <- out_params[[1]]
   
   # Validate parameters ------------------------------------------------------
@@ -121,9 +121,9 @@ tool_exec <- function(in_params, out_params) {
   
   # Build Random Forest model ------------------------------------------------
   
-  # Build model to predict "class" from all the input raster variables
+  # Build model to predict "class" from all input variables
   rfModel <- randomForest::randomForest(
-    class ~.,
+    class ~ .,
     data = pointValues,
     ntree = 200,
     importance = TRUE
@@ -131,6 +131,20 @@ tool_exec <- function(in_params, out_params) {
   
   # Save the model
   save(rfModel, file = paste0(modelName, "_model.RData"))
+  
+  # Plot model statistics ----------------------------------------------------
+  
+  # Model error rates
+  dev.new()
+  plot(rfModel, main = paste0(modelName, "_error"))
+  dev.copy(jpeg, paste0(modelName, "_error.jpg"))
+  dev.off()
+  
+  # Model variable importance
+  dev.new()
+  randomForest::varImpPlot(rfModel, sort = TRUE, main = paste0(modelName, "_importance"))
+  dev.copy(jpeg, paste0(modelName, "_importance.jpg"))
+  dev.off()
   
   # Return -------------------------------------------------------------------
   
@@ -141,10 +155,24 @@ tool_exec <- function(in_params, out_params) {
 # Tests
 if (FALSE) {
   
-  # Test in Puyallup region
+  # Test in Puyallup region (laptop)
   tool_exec(
     in_params = list(
       workingDir = "C:/Work/netmapdata/Puyallup",
+      inputRasterFiles = list("grad_300.flt", "dev_300.flt", "plan_300.flt", "prof_300.flt"),
+      inputPointsFile = "wetlandPnts.shp",
+      fieldName = "NEWCLASS",
+      isWetLabel = "WET",
+      notWetLabel = "UPL",
+      modelName = "puy"
+    ),
+    out_params = list(probRasterName="")
+  )
+  
+  # Test in Puyallup region (WORK2 desktop)
+  tool_exec(
+    in_params = list(
+      workingDir = "E:/NetmapData/Puyallup",
       inputRasterFiles = list("grad_300.flt", "dev_300.flt", "plan_300.flt", "prof_300.flt"),
       inputPointsFile = "wetlandPnts.shp",
       fieldName = "NEWCLASS",
