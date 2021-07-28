@@ -87,10 +87,11 @@ tool_exec <- function(in_params, out_params) {
   # Save input raster names
   rasterNames <- names(rasterStack)
   save(rasterNames, file = paste0(modelName, "_rasters.RData"))
+  writeLines(rasterNames, paste0(modelName, "_rasters.txt"))
   
   # Extract point values -----------------------------------------------------
   
-  # Sample rasters at point locations
+  # Sample variable readings at point locations
   pointValues <- terra::extract(rasterStack, classPoints, method = "simple")
   
   # Include point classification values (as factors, not strings)
@@ -110,14 +111,6 @@ tool_exec <- function(in_params, out_params) {
   # Convert class values to factors since Random Forest can't use strings as 
   # predictor variables
   pointValues$class <- factor(pointValues$class)
-  
-  # Change all predictor variable names to be generic. The same names will be 
-  # used when applying this RF model to other regions
-  for (i in seq_along(pointValues)) {
-    if (names(pointValues[i]) != "class") {
-      names(pointValues)[i] <- paste0("var", i)
-    } 
-  }
   
   # Build Random Forest model ------------------------------------------------
   

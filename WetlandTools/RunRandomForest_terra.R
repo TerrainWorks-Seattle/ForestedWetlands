@@ -2,6 +2,8 @@ tool_exec <- function(in_params, out_params) {
   
   # ----- Install packages ---------------------------------------------------
   
+  if (!requireNamespace("randomForest", quietly = TRUE))
+    install.packages("randomForest", quiet = TRUE)
   if (!requireNamespace("terra", quietly = TRUE))
     install.packages("terra", quiet = TRUE)
   
@@ -33,6 +35,10 @@ tool_exec <- function(in_params, out_params) {
     
   }
   
+  baseFilename <- function(file) {
+    return(gsub(basename(file), pattern="\\..*$", replacement=""))
+  }
+  
   # ----- Set input/output parameters ----------------------------------------
   
   # TODO: Try indexing in_params like in_params[["workingDir"]] so it returns
@@ -41,7 +47,11 @@ tool_exec <- function(in_params, out_params) {
   workingDir <- in_params[[1]]       # Working directory where model files will be stored
   modelFile <- in_params[[2]]        # Filename of the model
   inputRasterFiles <- in_params[[3]] # List of input raster filenames
-  isWetLabel <- in_params[[4]]       # Class for is-a-wetland
+  testDataFile <- in_params[[4]]
+  fieldName <- in_params[[5]]
+  isWetLabel <- in_params[[6]]       # Class for is-a-wetland
+  notWetLabel <- in_params[[7]]
+  calcStats <- in_params[[8]]
   probRasterName <- out_params[[1]]
   
   # Validate parameters ------------------------------------------------------
@@ -61,10 +71,12 @@ tool_exec <- function(in_params, out_params) {
   
   # Make sure the input rasters store the same variables as those used to 
   # build the model
-  rastersFile <- sub("model", "rasters", modelFile)
-  load(rastersFile)
-  if (length(inputRasterFiles) != length(rasterNames))
-    stop(paste0("Must use the same number of rasters as used to build the model (", length(rasterNames), ")"))
+  modelName <- sub("_model", "", baseFilename(modelFile))
+  modelVarNames <- sort(readLines(paste0(modelName, "_rasters.txt")))
+  inputVarNames <- sort(baseFilename(unlist(inputRasterFiles)))
+  
+  if (any(inputVarNames != modelVarNames))
+    stop("Input raster files do not match the the model variables")
   
   # Load each raster individually
   rasterList <- lapply(
@@ -81,24 +93,68 @@ tool_exec <- function(in_params, out_params) {
     rasterStack <- c(rasterStack, rasterList[[i]])
   }
   
-  names(rasterStack) <- paste0("var", seq_len(terra::nlyr(rasterStack)))
+  # Predict test data --------------------------------------------------------
+  
+  # Load the points training dataset
+  allPoints <- terra::vect(testDataFile)
+  
+  # Keep only the column with the input field that holds the wetland Class
+  classPoints <- allPoints[, fieldName]
+  
+  # Rename the column heading to Class
+  names(classPoints)[1] <- "class"
+  
+  # Sample variable readings at point locations
+  pointValues <- terra::extract(rasterStack, classPoints, method = "simple")
+  
+  # Include point classification values (as factors, not strings)
+  pointValues["class"] <- terra::values(classPoints)
+  
+  # Remove point "ID" column
+  pointValues <- pointValues[,-1]
+  
+  # Remove points with NA values
+  pointValues <- na.omit(pointValues)
+  
+  # Remove points that aren't labeled either "wetland" or "non-wetland"
+  pointValues <- pointValues[
+    pointValues$class == isWetLabel | pointValues$class == notWetLabel,
+  ]
+  
+  # Convert class values to factors since Random Forest can't use strings as 
+  # predictor variables
+  pointValues$class <- factor(pointValues$class)
+  
+  # Run model on these data
+  library(randomForest)
+  testDataPredictions <- predict(
+    rfModel,
+    type = "response",
+    newdata = pointValues[,-which(names(pointValues) == "class")]
+  )
+  
+  print(table(testDataPredictions, pointValues$class))
   
   # Generate wetland probability raster --------------------------------------
   
-  # Predict probability raster
-  probRaster <- terra::predict(
-    rasterStack,
-    rfModel,
-    na.rm = TRUE,
-    type = "prob"
-  )
-  
-  # Save probability raster
-  terra::writeRaster(
-    probRaster[[isWetLabel]],
-    filename = paste0(probRasterName, ".tif"),
-    overwrite = TRUE
-  )
+  if (!is.null(probRasterName) && !is.na(probRasterName)) {
+    rasterStack <- terra::crop(rasterStack, terra::ext(555600, 562400, 5224000, 5230000))
+    
+    # Predict probability raster
+    probRaster <- terra::predict(
+      rasterStack,
+      rfModel,
+      na.rm = TRUE,
+      type = "prob"
+    )
+    
+    # Save probability raster
+    terra::writeRaster(
+      probRaster[[isWetLabel]],
+      filename = paste0(probRasterName, ".tif"),
+      overwrite = TRUE
+    )
+  }
   
   # Return -------------------------------------------------------------------
   
@@ -115,7 +171,26 @@ if (FALSE) {
       workingDir = "C:/Work/netmapdata/Puyallup",
       modelFile = "puy_model.RData",
       inputRasterFiles = list("grad_300.flt", "dev_300.flt", "plan_300.flt", "prof_300.flt"),
-      isWetLabel = "WET"
+      testDataFile <- "wetlandPnts.shp",
+      fieldName <- "NEWCLASS",
+      isWetLabel <- "WET",
+      notWetLabel <- "UPL",
+      calcStats <- FALSE
+    ),
+    out_params = list(probRasterName = "puy_prob")
+  )
+  
+  # Test in Puyallup region (WORK2 desktop)
+  tool_exec(
+    in_params = list(
+      workingDir = "E:/NetmapData/Puyallup",
+      modelFile = "puy_model.RData",
+      inputRasterFiles = list("grad_300.flt", "dev_300.flt", "plan_300.flt", "prof_300.flt"),
+      testDataFile <- "wetlandPnts.shp",
+      fieldName <- "NEWCLASS",
+      isWetLabel <- "WET",
+      notWetLabel <- "UPL",
+      calcStats <- FALSE
     ),
     out_params = list(probRasterName = "puy_prob")
   )

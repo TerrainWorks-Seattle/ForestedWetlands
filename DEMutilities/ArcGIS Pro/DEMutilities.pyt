@@ -119,7 +119,7 @@ class SurfaceMetrics(object):
             datatype = 'DEFolder',
             parameterType = 'Optional',
             direction = 'Input',
-            enabled = False)
+            enabled = True)
         
         params = [param0, param1, param2, param3, param4, param5, param6, param7, param8, param9]
     #   0 = DEM
