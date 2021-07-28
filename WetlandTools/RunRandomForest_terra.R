@@ -41,15 +41,16 @@ tool_exec <- function(in_params, out_params) {
   
   # ----- Set input/output parameters ----------------------------------------
   
-  # TODO: Try indexing in_params like in_params[["workingDir"]] so it returns
-  # NULL if missing rather than stopping the program.
+  # TODO: Try indexing in_params using the parameter names specified in the ArcGIS tool.
+  # Ex: in_params[["Working_Directory"]]
+  # Indexing by name returns NULL when missing instead of causing an error when indexing by number.
   
   workingDir <- in_params[[1]]       # Working directory where model files will be stored
   modelFile <- in_params[[2]]        # Filename of the model
   inputRasterFiles <- in_params[[3]] # List of input raster filenames
-  testDataFile <- in_params[[4]]
-  fieldName <- in_params[[5]]
-  isWetLabel <- in_params[[6]]       # Class for is-a-wetland
+  testDataFile <- in_params[[4]]     # Points to run the model on
+  fieldName <- in_params[[5]]        # Classification field name within the point feature class
+  isWetLabel <- in_params[[6]]       # Classwetland
   notWetLabel <- in_params[[7]]
   calcStats <- in_params[[8]]
   probRasterName <- out_params[[1]]
@@ -138,7 +139,7 @@ tool_exec <- function(in_params, out_params) {
   # Generate wetland probability raster --------------------------------------
   
   if (!is.null(probRasterName) && !is.na(probRasterName)) {
-    rasterStack <- terra::crop(rasterStack, terra::ext(555600, 562400, 5224000, 5230000))
+    rasterStack <- terra::crop(rasterStack, terra::ext(553800, 555900, 5187450, 5189400))
     
     # Predict probability raster
     probRaster <- terra::predict(
@@ -165,7 +166,7 @@ tool_exec <- function(in_params, out_params) {
 # Tests
 if (FALSE) {
   
-  # Test in Puyallup region
+  # Test in Puyallup region (BIGLAPTOP)
   tool_exec(
     in_params = list(
       workingDir = "C:/Work/netmapdata/Puyallup",
@@ -178,6 +179,21 @@ if (FALSE) {
       calcStats <- FALSE
     ),
     out_params = list(probRasterName = "puy_prob")
+  )
+  
+  # Test Puyallup model in Mashel region (BIGLAPTOP)
+  tool_exec(
+    in_params = list(
+      workingDir = "C:/Work/netmapdata/Mashel",
+      modelFile = "puy_model.RData",
+      inputRasterFiles = list("grad_50.tif", "dev_50.tif", "plan_50.tif", "prof_50.tif"),
+      testDataFile <- "PtAllPuy.shp",
+      fieldName <- "NEWCLASS",
+      isWetLabel <- "WET",
+      notWetLabel <- "UPL",
+      calcStats <- FALSE
+    ),
+    out_params = list(probRasterName = "mas_prob")
   )
   
   # Test in Puyallup region (WORK2 desktop)
