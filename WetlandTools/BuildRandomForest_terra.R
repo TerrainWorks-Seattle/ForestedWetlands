@@ -2,6 +2,8 @@ tool_exec <- function(in_params, out_params) {
   
   # ----- Install required packages ------------------------------------------
   
+  if (!requireNamespace("randomForest", quietly = TRUE))
+    install.packages("randomForest", quiet = TRUE)
   if (!requireNamespace("terra", quietly = TRUE))
     install.packages("terra", quiet = TRUE)
   
@@ -43,8 +45,9 @@ tool_exec <- function(in_params, out_params) {
   inputPointsFile <- in_params[[3]]  # Filename of point feature classified by wetland type
   fieldName <- in_params[[4]]        # Classification filed name within the point feature class
   isWetLabel <- in_params[[5]]       # Classification label for is-a-wetland
-  notWetLabel <- in_params[[6]]      # Classification label for not-a-wetland, thes could be expanded to allow multiple names
+  notWetLabel <- in_params[[6]]      # Classification label for not-a-wetland. Could be expanded to allow multiple names
   modelName <- in_params[[7]]        # Name for the generated RF model
+  calcStats <- in_params[[8]]
   probRasterName <- out_params[[1]]
   
   # Validate parameters ------------------------------------------------------
@@ -137,6 +140,27 @@ tool_exec <- function(in_params, out_params) {
   randomForest::varImpPlot(rfModel, sort = TRUE, main = paste0(modelName, "_importance"))
   dev.copy(jpeg, paste0(modelName, "_importance.wmf"))
   dev.off()
+  
+  # Generate probability raster ----------------------------------------------
+  
+  if (!is.null(probRasterName) && nchar(probRasterName) > 0) {
+    
+    # Predict probability raster
+    probRaster <- terra::predict(
+      rasterStack,
+      rfModel,
+      na.rm = TRUE,
+      type = "prob"
+    )
+    
+    # Save probability raster
+    terra::writeRaster(
+      probRaster[[isWetLabel]],
+      filename = paste0(probRasterName, ".tif"),
+      overwrite = TRUE
+    )
+    
+  }
   
   # Return -------------------------------------------------------------------
   
