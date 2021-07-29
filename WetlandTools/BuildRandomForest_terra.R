@@ -86,8 +86,8 @@ tool_exec <- function(in_params, out_params) {
   
   # Save input raster names
   rasterNames <- names(rasterStack)
-  save(rasterNames, file = paste0(modelName, "_rasters.RData"))
-  writeLines(rasterNames, paste0(modelName, "_rasters.txt"))
+  #save(rasterNames, file = paste0(modelName, "_rasters.RData"))
+  writeLines(rasterNames, paste0(modelName, ".RasterList"))
   
   # Extract point values -----------------------------------------------------
   
@@ -104,9 +104,8 @@ tool_exec <- function(in_params, out_params) {
   pointValues <- na.omit(pointValues)
   
   # Remove points that aren't labeled either "wetland" or "non-wetland"
-  pointValues <- pointValues[
-    pointValues$class == isWetLabel | pointValues$class == notWetLabel,
-  ]
+  correctlyLabeledRows <- pointValues$class == isWetLabel | pointValues$class == notWetLabel
+  pointValues <- pointValues[correctlyLabeledRows,]
   
   # Convert class values to factors since Random Forest can't use strings as 
   # predictor variables
@@ -114,7 +113,7 @@ tool_exec <- function(in_params, out_params) {
   
   # Build Random Forest model ------------------------------------------------
   
-  # Build model to predict "class" from all input variables
+  # Build a model that predicts "class" from all input variables
   rfModel <- randomForest::randomForest(
     class ~ .,
     data = pointValues,
@@ -123,20 +122,20 @@ tool_exec <- function(in_params, out_params) {
   )
   
   # Save the model
-  save(rfModel, file = paste0(modelName, "_model.RData"))
+  save(rfModel, file = paste0(modelName, ".RFmodel"))
   
   # Plot model statistics ----------------------------------------------------
   
   # Model error rates
   dev.new()
-  plot(rfModel, main = paste0(modelName, "_error"))
-  dev.copy(jpeg, paste0(modelName, "_error.jpg"))
+  plot(rfModel, main = paste0(modelName, "_rfclass"))
+  dev.copy(jpeg, paste0(modelName, "_rfclass.wmf"))
   dev.off()
   
   # Model variable importance
   dev.new()
   randomForest::varImpPlot(rfModel, sort = TRUE, main = paste0(modelName, "_importance"))
-  dev.copy(jpeg, paste0(modelName, "_importance.jpg"))
+  dev.copy(jpeg, paste0(modelName, "_importance.wmf"))
   dev.off()
   
   # Return -------------------------------------------------------------------
@@ -148,7 +147,7 @@ tool_exec <- function(in_params, out_params) {
 # Tests
 if (FALSE) {
   
-  # Test in Puyallup region (laptop)
+  # Test in Puyallup region (BIGLAPTOP)
   tool_exec(
     in_params = list(
       workingDir = "C:/Work/netmapdata/Puyallup",

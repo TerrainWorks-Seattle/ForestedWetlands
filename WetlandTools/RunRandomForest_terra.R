@@ -70,25 +70,24 @@ tool_exec <- function(in_params, out_params) {
   
   # Load input rasters -------------------------------------------------------
   
-  # Make sure the input rasters store the same variables as those used to 
-  # build the model
-  modelName <- sub("_model", "", baseFilename(modelFile))
-  modelVarNames <- sort(readLines(paste0(modelName, "_rasters.txt")))
+  # Make sure the input rasters represent the variables expected by the model
+  modelRastersFile <- sub(".RFmodel", ".RasterList", modelFile)
+  modelVarNames <- sort(readLines(modelRastersFile))
   inputVarNames <- sort(baseFilename(unlist(inputRasterFiles)))
   
   if (any(inputVarNames != modelVarNames))
-    stop("Input raster files do not match the the model variables")
+    stop("Input raster files do not match the model variables")
   
-  # Load each raster individually
+  # Load each input raster individually
   rasterList <- lapply(
     inputRasterFiles,
     function(file) terra::rast(file)
   )
   
-  # Align rasters (with the first input raster)
+  # Make sure all the input rasters are aligned (with the first input raster)
   rasterList <- alignRasters(rasterList[[1]], rasterList)
   
-  # Combine individual rasters into a stack
+  # Combine input rasters into a stack
   rasterStack <- c(rasterList[[1]])
   for (i in 2:length(rasterList)) {
     rasterStack <- c(rasterStack, rasterList[[i]])
@@ -127,7 +126,6 @@ tool_exec <- function(in_params, out_params) {
   pointValues$class <- factor(pointValues$class)
   
   # Run model on these data
-  library(randomForest)
   testDataPredictions <- predict(
     rfModel,
     type = "response",
@@ -139,7 +137,8 @@ tool_exec <- function(in_params, out_params) {
   # Generate wetland probability raster --------------------------------------
   
   if (!is.null(probRasterName) && !is.na(probRasterName)) {
-    rasterStack <- terra::crop(rasterStack, terra::ext(553800, 555900, 5187450, 5189400))
+    # For debugging in Mashel region: shrink the area to predict 
+    #rasterStack <- terra::crop(rasterStack, terra::ext(553800, 556000, 5187450, 5189400))
     
     # Predict probability raster
     probRaster <- terra::predict(
@@ -166,11 +165,11 @@ tool_exec <- function(in_params, out_params) {
 # Tests
 if (FALSE) {
   
-  # Test in Puyallup region (BIGLAPTOP)
+  # Test Puyallup model in Puyallup region (BIGLAPTOP)
   tool_exec(
     in_params = list(
       workingDir = "C:/Work/netmapdata/Puyallup",
-      modelFile = "puy_model.RData",
+      modelFile = "puy.RFmodel",
       inputRasterFiles = list("grad_300.flt", "dev_300.flt", "plan_300.flt", "prof_300.flt"),
       testDataFile <- "wetlandPnts.shp",
       fieldName <- "NEWCLASS",
@@ -178,22 +177,22 @@ if (FALSE) {
       notWetLabel <- "UPL",
       calcStats <- FALSE
     ),
-    out_params = list(probRasterName = "puy_prob")
+    out_params = list(probRasterName = NULL)
   )
   
   # Test Puyallup model in Mashel region (BIGLAPTOP)
   tool_exec(
     in_params = list(
       workingDir = "C:/Work/netmapdata/Mashel",
-      modelFile = "puy_model.RData",
-      inputRasterFiles = list("grad_50.tif", "dev_50.tif", "plan_50.tif", "prof_50.tif"),
+      modelFile = "puy.RFmodel",
+      inputRasterFiles = list("grad_300.tif", "dev_300.tif", "plan_300.tif", "prof_300.tif"),
       testDataFile <- "PtAllPuy.shp",
       fieldName <- "NEWCLASS",
       isWetLabel <- "WET",
       notWetLabel <- "UPL",
       calcStats <- FALSE
     ),
-    out_params = list(probRasterName = "mas_prob")
+    out_params = list(probRasterName = "mashel_prob")
   )
   
   # Test in Puyallup region (WORK2 desktop)
