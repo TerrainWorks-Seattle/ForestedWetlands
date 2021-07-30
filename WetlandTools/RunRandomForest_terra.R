@@ -59,14 +59,21 @@ tool_exec <- function(in_params, out_params) {
   
   # TODO: Make sure no passed in args are illegal
   
-  # Load Random Forest model -------------------------------------------------
+  # Setup --------------------------------------------------------------------
   
-  # Set the working directory
   setwd(workingDir)
-  print(paste0("Current working directory: ", workingDir))
+  
+  # Set up logging
+  logFilename <- "run.log"
+  file.create(logFilename)
+  
+  cat(paste0("Current working directory: ", workingDir), file = logFilename)
+  
+  # Load Random Forest model -------------------------------------------------
   
   # Load the model
   load(modelFile)
+  cat(paste0("Loaded model: ", modelFile), file = logFilename, append = TRUE)
   
   # Load input rasters -------------------------------------------------------
   
@@ -117,9 +124,8 @@ tool_exec <- function(in_params, out_params) {
   pointValues <- na.omit(pointValues)
   
   # Remove points that aren't labeled either "wetland" or "non-wetland"
-  pointValues <- pointValues[
-    pointValues$class == isWetLabel | pointValues$class == notWetLabel,
-  ]
+  correctlyLabeledRows <- pointValues$class == isWetLabel | pointValues$class == notWetLabel
+  pointValues <- pointValues[correctlyLabeledRows,]
   
   # Convert class values to factors since Random Forest can't use strings as 
   # predictor variables
@@ -132,7 +138,7 @@ tool_exec <- function(in_params, out_params) {
     newdata = pointValues[,-which(names(pointValues) == "class")]
   )
   
-  print(table(testDataPredictions, pointValues$class))
+  capture.output(table(testDataPredictions, pointValues$class), file = logFilename, append = TRUE)
   
   # Generate wetland probability raster --------------------------------------
   
@@ -154,6 +160,8 @@ tool_exec <- function(in_params, out_params) {
       filename = paste0(probRasterName, ".tif"),
       overwrite = TRUE
     )
+    
+    cat(paste0("Created probability raster: ", paste0(probRasterName, ".tif")), file = logFilename, append = TRUE)
   }
   
   # Return -------------------------------------------------------------------
@@ -199,7 +207,7 @@ if (FALSE) {
   tool_exec(
     in_params = list(
       workingDir = "E:/NetmapData/Puyallup",
-      modelFile = "puy_model.RData",
+      modelFile = "puy.RFmodel",
       inputRasterFiles = list("grad_300.flt", "dev_300.flt", "plan_300.flt", "prof_300.flt"),
       testDataFile <- "wetlandPnts.shp",
       fieldName <- "NEWCLASS",

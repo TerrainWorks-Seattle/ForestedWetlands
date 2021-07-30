@@ -54,12 +54,17 @@ tool_exec <- function(in_params, out_params) {
   
   # TODO: Make sure no passed in args are illegal
   
-  # Load data ----------------------------------------------------------------
-  
-  ## Load classification points ----------------------------------------------
+  # Setup --------------------------------------------------------------------
   
   setwd(workingDir)
-  print(paste0("Current working directory: ", workingDir))
+  
+  # Set up logging
+  logFilename <- "build.log"
+  file.create(logFilename)
+  
+  cat(paste0("Current working directory: ", workingDir), file = logFilename)
+  
+  # Load classification points -----------------------------------------------
   
   # Load the points training dataset
   allPoints <- terra::vect(inputPointsFile)
@@ -67,10 +72,10 @@ tool_exec <- function(in_params, out_params) {
   # Keep only the column with the input field that holds the wetland Class
   classPoints <- allPoints[, fieldName]
   
-  # Rename the column heading to Class
+  # Rename the column heading to class
   names(classPoints)[1] <- "class"
   
-  ## Load input rasters ------------------------------------------------------
+  # Load input rasters -------------------------------------------------------
   
   # Load each raster individually
   rasterList <- lapply(
@@ -78,7 +83,7 @@ tool_exec <- function(in_params, out_params) {
     function(file) terra::rast(file)
   )
   
-  # Align rasters (with the first input raster)
+  # Make sure rasters are aligned (with the first input raster)
   rasterList <- alignRasters(rasterList[[1]], rasterList)
   
   # Combine individual rasters into a stack
@@ -89,8 +94,10 @@ tool_exec <- function(in_params, out_params) {
   
   # Save input raster names
   rasterNames <- names(rasterStack)
-  #save(rasterNames, file = paste0(modelName, "_rasters.RData"))
-  writeLines(rasterNames, paste0(modelName, ".RasterList"))
+  rasterNamesFilename <- paste0(modelName, ".RasterList")
+  writeLines(rasterNames, rasterNamesFilename)
+  
+  cat(paste0("Raster names saved in ", rasterNamesFilename, "\n"), file = logFilename, append = TRUE)
   
   # Extract point values -----------------------------------------------------
   
@@ -114,6 +121,9 @@ tool_exec <- function(in_params, out_params) {
   # predictor variables
   pointValues$class <- factor(pointValues$class)
   
+  cat("Ground-truth classifications:\n", file = logFilename, append = TRUE)
+  capture.output(summary(pointValues$class), file = logFilename, append = TRUE)
+  
   # Build Random Forest model ------------------------------------------------
   
   # Build a model that predicts "class" from all input variables
@@ -124,8 +134,14 @@ tool_exec <- function(in_params, out_params) {
     importance = TRUE
   )
   
+  # Log model information
+  capture.output(rfModel, file = logFilename, append = TRUE)
+  capture.output(randomForest::importance(rfModel), file = logFilename, append = TRUE)
+  
   # Save the model
-  save(rfModel, file = paste0(modelName, ".RFmodel"))
+  modelFilename <- paste0(modelName, ".RFmodel")
+  save(rfModel, file = modelFilename)
+  cat(paste0("Model saved in: ", modelFilename, "\n"), file = logFilename, append = TRUE)
   
   # Plot model statistics ----------------------------------------------------
   
@@ -194,7 +210,8 @@ if (FALSE) {
       fieldName = "NEWCLASS",
       isWetLabel = "WET",
       notWetLabel = "UPL",
-      modelName = "puy"
+      modelName = "puy",
+      calcStats = FALSE
     ),
     out_params = list(probRasterName="")
   )
