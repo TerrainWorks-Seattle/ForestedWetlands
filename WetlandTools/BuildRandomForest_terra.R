@@ -4,6 +4,8 @@ tool_exec <- function(in_params, out_params) {
   
   if (!requireNamespace("randomForest", quietly = TRUE))
     install.packages("randomForest", quiet = TRUE)
+  if (!requireNamespace("ROCR", quietly = TRUE))
+    install.packages("ROCR", quiet = TRUE)
   if (!requireNamespace("terra", quietly = TRUE))
     install.packages("terra", quiet = TRUE)
   
@@ -104,7 +106,7 @@ tool_exec <- function(in_params, out_params) {
   # Sample variable readings at point locations
   pointValues <- terra::extract(rasterStack, classPoints, method = "simple")
   
-  # Include point classification values (as factors, not strings)
+  # Include point classification values
   pointValues["class"] <- terra::values(classPoints)
   
   # Remove point "ID" column
@@ -161,7 +163,11 @@ tool_exec <- function(in_params, out_params) {
   
   if (!is.null(probRasterName) && nchar(probRasterName) > 0) {
     
-    # Predict probability raster
+    # For faster debugging: shrink the area to predict
+    #rasterStack <- terra::crop(rasterStack, terra::ext(553800, 561200, 5224100, 5231100)) # Puyallup
+    #rasterStack <- terra::crop(rasterStack, terra::ext(553800, 556000, 5187400, 5189400)) # Mashel
+    
+    # Predict class probability raster
     probRaster <- terra::predict(
       rasterStack,
       rfModel,
@@ -169,12 +175,71 @@ tool_exec <- function(in_params, out_params) {
       type = "prob"
     )
     
-    # Save probability raster
-    terra::writeRaster(
-      probRaster[[isWetLabel]],
-      filename = paste0(probRasterName, ".tif"),
-      overwrite = TRUE
-    )
+    wetlandProbRaster <- probRaster[[isWetLabel]]
+    
+    if (calcStats) {
+      
+      # Sample probability raster readings at point locations
+      pointValues <- terra::extract(wetlandProbRaster, classPoints, method = "simple")
+      
+      # Include point classification values
+      pointValues["class"] <- terra::values(classPoints)
+      
+      # Remove point "ID" column
+      pointValues <- pointValues[,-1]
+      
+      # Remove points with NA values
+      pointValues <- na.omit(pointValues)
+      
+      # Remove points that aren't labeled either "wetland" or "non-wetland"
+      correctlyLabeledRows <- pointValues$class == isWetLabel | pointValues$class == notWetLabel
+      pointValues <- pointValues[correctlyLabeledRows,]
+      
+      # Convert class values to factors since Random Forest can't use strings as 
+      # predictor variables
+      pointValues$class <- factor(pointValues$class)
+      
+      names(pointValues)[1] <- "prob"
+      
+      # Calculate ROC statistics
+      pred <- ROCR::prediction(pointValues$prob, pointValues$class, label.ordering = c(isWetLabel, notWetLabel))
+      roc <- ROCR::performance(pred, measure = "tpr", x.measure = "fpr")
+      auc <- ROCR::performance(pred, measure = "auc")
+      precision <- ROCR::performance(pred, measure = "prec", x.measure = "rec")
+      accuracy <- ROCR::performance(pred, measure = "acc")
+      
+      cat(paste0("AUROC: ", auc@y.values, "\n"))
+      
+      idx <- which.max(slot(precision, "y.values")[[1]])
+      prbe <- slot(precision, "y.values")[[1]][idx]
+      cutoff <- slot(precision, "x.values")[[1]][idx]
+      print(c(PRBE=prbe, cutoff=cutoff))
+      
+      idx <- which.max(slot(accuracy, "y.values")[[1]])
+      maxacc <- slot(accuracy, "y.values")[[1]][idx]
+      cutoff <- slot(accuracy, "x.values")[[1]][idx]
+      print(c(accuracy=maxacc, cutoff=cutoff))
+      
+      # Plot ROC
+      dev.new()
+      ROCR::plot(roc, main = paste0(modelName, "_roc"))
+      abline(a = 0, b = 1)
+      dev.copy(jpeg, paste0(modelName, "_roc.wmf"))
+      dev.off()
+      
+      # Plot precision
+      dev.new()
+      ROCR::plot(precision, main = paste0(modelName, "_prc"))
+      dev.copy(jpeg, paste0(modelName, "_prc.wmf"))
+      dev.off()
+      
+      # Plot accuracy
+      dev.new()
+      ROCR::plot(accuracy, main = paste0(modelName, "_acc"))
+      dev.copy(jpeg, paste0(modelName, "_acc.wmf"))
+      dev.off()
+      
+    }
     
   }
   
@@ -211,9 +276,9 @@ if (FALSE) {
       isWetLabel = "WET",
       notWetLabel = "UPL",
       modelName = "puy",
-      calcStats = FALSE
+      calcStats = TRUE
     ),
-    out_params = list(probRasterName="")
+    out_params = list(probRasterName="puy_prob")
   )
   
   # Test in Mashel region
