@@ -208,17 +208,17 @@ tool_exec <- function(in_params, out_params) {
       precision <- ROCR::performance(pred, measure = "prec", x.measure = "rec")
       accuracy <- ROCR::performance(pred, measure = "acc")
       
-      cat(paste0("AUROC: ", auc@y.values, "\n"))
+      cat(paste0("AUROC: ", auc@y.values, "\n"), file = logFilename, append = TRUE)
       
       idx <- which.max(slot(precision, "y.values")[[1]])
       prbe <- slot(precision, "y.values")[[1]][idx]
       cutoff <- slot(precision, "x.values")[[1]][idx]
-      print(c(PRBE = prbe, cutoff = cutoff))
+      capture.output(c(PRBE = prbe, cutoff = cutoff), file = logFilename, append = TRUE)
       
       idx <- which.max(slot(accuracy, "y.values")[[1]])
       maxacc <- slot(accuracy, "y.values")[[1]][idx]
       cutoff <- slot(accuracy, "x.values")[[1]][idx]
-      print(c(accuracy = maxacc, cutoff = cutoff))
+      capture.output(c(accuracy = maxacc, cutoff = cutoff), file = logFilename, append = TRUE)
       
       # Plot ROC
       dev.new()
