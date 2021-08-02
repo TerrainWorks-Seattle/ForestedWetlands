@@ -150,13 +150,13 @@ tool_exec <- function(in_params, out_params) {
   # Model error rates
   dev.new()
   plot(rfModel, main = paste0(modelName, "_rfclass"))
-  dev.copy(jpeg, paste0(modelName, "_rfclass.wmf"))
+  dev.copy(win.metafile, paste0(modelName, "_rfclass.wmf"))
   dev.off()
   
   # Model variable importance
   dev.new()
   randomForest::varImpPlot(rfModel, sort = TRUE, main = paste0(modelName, "_importance"))
-  dev.copy(jpeg, paste0(modelName, "_importance.wmf"))
+  dev.copy(win.metafile, paste0(modelName, "_importance.wmf"))
   dev.off()
   
   # Generate probability raster ----------------------------------------------
@@ -213,30 +213,30 @@ tool_exec <- function(in_params, out_params) {
       idx <- which.max(slot(precision, "y.values")[[1]])
       prbe <- slot(precision, "y.values")[[1]][idx]
       cutoff <- slot(precision, "x.values")[[1]][idx]
-      print(c(PRBE=prbe, cutoff=cutoff))
+      print(c(PRBE = prbe, cutoff = cutoff))
       
       idx <- which.max(slot(accuracy, "y.values")[[1]])
       maxacc <- slot(accuracy, "y.values")[[1]][idx]
       cutoff <- slot(accuracy, "x.values")[[1]][idx]
-      print(c(accuracy=maxacc, cutoff=cutoff))
+      print(c(accuracy = maxacc, cutoff = cutoff))
       
       # Plot ROC
       dev.new()
       ROCR::plot(roc, main = paste0(modelName, "_roc"))
       abline(a = 0, b = 1)
-      dev.copy(jpeg, paste0(modelName, "_roc.wmf"))
+      dev.copy(win.metafile, paste0(modelName, "_roc.wmf"))
       dev.off()
       
       # Plot precision
       dev.new()
       ROCR::plot(precision, main = paste0(modelName, "_prc"))
-      dev.copy(jpeg, paste0(modelName, "_prc.wmf"))
+      dev.copy(win.metafile, paste0(modelName, "_prc.wmf"))
       dev.off()
       
       # Plot accuracy
       dev.new()
       ROCR::plot(accuracy, main = paste0(modelName, "_acc"))
-      dev.copy(jpeg, paste0(modelName, "_acc.wmf"))
+      dev.copy(win.metafile, paste0(modelName, "_acc.wmf"))
       dev.off()
       
     }
@@ -261,9 +261,10 @@ if (FALSE) {
       fieldName = "NEWCLASS",
       isWetLabel = "WET",
       notWetLabel = "UPL",
-      modelName = "puy"
+      modelName = "puy",
+      calcStats = TRUE
     ),
-    out_params = list(probRasterName="")
+    out_params = list(probRasterName = "puy_prob")
   )
   
   # Test in Puyallup region (WORK2 desktop)
@@ -278,7 +279,7 @@ if (FALSE) {
       modelName = "puy",
       calcStats = TRUE
     ),
-    out_params = list(probRasterName="puy_prob")
+    out_params = list(probRasterName = "puy_prob")
   )
   
   # Test in Mashel region
