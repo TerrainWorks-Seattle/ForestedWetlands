@@ -63,6 +63,8 @@ tool_exec <- function(in_params, out_params) {
   
   setwd(workingDir)
   
+  modelName <- baseFilename(modelFile)
+  
   # Set up logging
   logFilename <- "run.log"
   file.create(logFilename)
@@ -102,49 +104,55 @@ tool_exec <- function(in_params, out_params) {
   
   # Predict test data --------------------------------------------------------
   
-  # Load the points training dataset
-  allPoints <- terra::vect(testDataFile)
-  
-  # Keep only the column with the input field that holds the wetland Class
-  classPoints <- allPoints[, fieldName]
-  
-  # Rename the column heading to Class
-  names(classPoints)[1] <- "class"
-  
-  # Sample variable readings at point locations
-  pointValues <- terra::extract(rasterStack, classPoints, method = "simple")
-  
-  # Include point classification values (as factors, not strings)
-  pointValues["class"] <- terra::values(classPoints)
-  
-  # Remove point "ID" column
-  pointValues <- pointValues[,-1]
-  
-  # Remove points with NA values
-  pointValues <- na.omit(pointValues)
-  
-  # Remove points that aren't labeled either "wetland" or "non-wetland"
-  correctlyLabeledRows <- pointValues$class == isWetLabel | pointValues$class == notWetLabel
-  pointValues <- pointValues[correctlyLabeledRows,]
-  
-  # Convert class values to factors since Random Forest can't use strings as 
-  # predictor variables
-  pointValues$class <- factor(pointValues$class)
-  
-  # Run model on these data
-  testDataPredictions <- predict(
-    rfModel,
-    type = "response",
-    newdata = pointValues[,-which(names(pointValues) == "class")]
-  )
-  
-  capture.output(table(testDataPredictions, pointValues$class), file = logFilename, append = TRUE)
+  if (!is.null(testDataFile) && !is.na(testDataFile)) {
+    
+    # Load the points training dataset
+    allPoints <- terra::vect(testDataFile)
+    
+    # Keep only the column with the input field that holds the wetland Class
+    classPoints <- allPoints[, fieldName]
+    
+    # Rename the column heading to Class
+    names(classPoints)[1] <- "class"
+    
+    # Sample variable readings at point locations
+    pointValues <- terra::extract(rasterStack, classPoints, method = "simple")
+    
+    # Include point classification values (as factors, not strings)
+    pointValues["class"] <- terra::values(classPoints)
+    
+    # Remove point "ID" column
+    pointValues <- pointValues[,-1]
+    
+    # Remove points with NA values
+    pointValues <- na.omit(pointValues)
+    
+    # Remove points that aren't labeled either "wetland" or "non-wetland"
+    correctlyLabeledRows <- pointValues$class == isWetLabel | pointValues$class == notWetLabel
+    pointValues <- pointValues[correctlyLabeledRows,]
+    
+    # Convert class values to factors since Random Forest can't use strings as 
+    # predictor variables
+    pointValues$class <- factor(pointValues$class)
+    
+    # Run model on these data
+    testDataPredictions <- predict(
+      rfModel,
+      type = "response",
+      newdata = pointValues[,-which(names(pointValues) == "class")]
+    )
+    
+    # Log confusion matrix for predicted test data classifications
+    capture.output(table(testDataPredictions, pointValues$class), file = logFilename, append = TRUE)
+    
+  }
   
   # Generate wetland probability raster --------------------------------------
   
   if (!is.null(probRasterName) && !is.na(probRasterName)) {
-    # For debugging in Mashel region: shrink the area to predict 
-    #rasterStack <- terra::crop(rasterStack, terra::ext(553800, 556000, 5187450, 5189400))
+    # For faster debugging: shrink the area to predict
+    #rasterStack <- terra::crop(rasterStack, terra::ext(553800, 561200, 5224100, 5231100)) # Puyallup
+    rasterStack <- terra::crop(rasterStack, terra::ext(553800, 556000, 5187400, 5189400)) # Mashel
     
     # Predict probability raster
     probRaster <- terra::predict(
@@ -154,14 +162,80 @@ tool_exec <- function(in_params, out_params) {
       type = "prob"
     )
     
+    wetlandProbRaster <- probRaster[[isWetLabel]]
+    
     # Save probability raster
     terra::writeRaster(
-      probRaster[[isWetLabel]],
+      wetlandProbRaster,
       filename = paste0(probRasterName, ".tif"),
       overwrite = TRUE
     )
     
-    cat(paste0("Created probability raster: ", paste0(probRasterName, ".tif")), file = logFilename, append = TRUE)
+    cat(paste0("Created probability raster: ", paste0(probRasterName, ".tif"), "\n"), file = logFilename, append = TRUE)
+    
+    if (calcStats) {
+      
+      # Sample probability raster readings at point locations
+      pointValues <- terra::extract(wetlandProbRaster, classPoints, method = "simple")
+      
+      # Include point classification values
+      pointValues["class"] <- terra::values(classPoints)
+      
+      # Remove point "ID" column
+      pointValues <- pointValues[,-1]
+      
+      # Remove points with NA values
+      pointValues <- na.omit(pointValues)
+      
+      # Remove points that aren't labeled either "wetland" or "non-wetland"
+      correctlyLabeledRows <- pointValues$class == isWetLabel | pointValues$class == notWetLabel
+      pointValues <- pointValues[correctlyLabeledRows,]
+      
+      # Convert class values to factors since Random Forest can't use strings as 
+      # predictor variables
+      pointValues$class <- factor(pointValues$class)
+      
+      names(pointValues)[1] <- "prob"
+      
+      # Calculate ROC statistics
+      pred <- ROCR::prediction(pointValues$prob, pointValues$class, label.ordering = c(isWetLabel, notWetLabel))
+      roc <- ROCR::performance(pred, measure = "tpr", x.measure = "fpr")
+      auc <- ROCR::performance(pred, measure = "auc")
+      precision <- ROCR::performance(pred, measure = "prec", x.measure = "rec")
+      accuracy <- ROCR::performance(pred, measure = "acc")
+      
+      cat(paste0("AUROC: ", auc@y.values, "\n"), file = logFilename, append = TRUE)
+      
+      idx <- which.max(slot(precision, "y.values")[[1]])
+      prbe <- slot(precision, "y.values")[[1]][idx]
+      cutoff <- slot(precision, "x.values")[[1]][idx]
+      capture.output(c(PRBE = prbe, cutoff = cutoff), file = logFilename, append = TRUE)
+      
+      idx <- which.max(slot(accuracy, "y.values")[[1]])
+      maxacc <- slot(accuracy, "y.values")[[1]][idx]
+      cutoff <- slot(accuracy, "x.values")[[1]][idx]
+      capture.output(c(accuracy = maxacc, cutoff = cutoff), file = logFilename, append = TRUE)
+      
+      # Plot ROC
+      dev.new()
+      ROCR::plot(roc, main = paste0(modelName, "_roc"))
+      abline(a = 0, b = 1)
+      dev.copy(win.metafile, paste0(modelName, "_roc.wmf"))
+      dev.off()
+      
+      # Plot precision
+      dev.new()
+      ROCR::plot(precision, main = paste0(modelName, "_prc"))
+      dev.copy(win.metafile, paste0(modelName, "_prc.wmf"))
+      dev.off()
+      
+      # Plot accuracy
+      dev.new()
+      ROCR::plot(accuracy, main = paste0(modelName, "_acc"))
+      dev.copy(win.metafile, paste0(modelName, "_acc.wmf"))
+      dev.off()
+      
+    }
   }
   
   # Return -------------------------------------------------------------------
@@ -183,9 +257,9 @@ if (FALSE) {
       fieldName <- "NEWCLASS",
       isWetLabel <- "WET",
       notWetLabel <- "UPL",
-      calcStats <- FALSE
+      calcStats <- TRUE
     ),
-    out_params = list(probRasterName = NULL)
+    out_params = list(probRasterName = "puy_prob")
   )
   
   # Test Puyallup model in Mashel region (BIGLAPTOP)
@@ -198,9 +272,9 @@ if (FALSE) {
       fieldName <- "NEWCLASS",
       isWetLabel <- "WET",
       notWetLabel <- "UPL",
-      calcStats <- FALSE
+      calcStats <- TRUE
     ),
-    out_params = list(probRasterName = "mashel_prob")
+    out_params = list(probRasterName = "mas_prob")
   )
   
   # Test in Puyallup region (WORK2 desktop)
