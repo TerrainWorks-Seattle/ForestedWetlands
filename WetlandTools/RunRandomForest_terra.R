@@ -154,7 +154,7 @@ tool_exec <- function(in_params, out_params) {
   if (!is.null(probRasterName) && !is.na(probRasterName)) {
     # For faster debugging: shrink the area to predict
     #rasterStack <- terra::crop(rasterStack, terra::ext(553800, 561200, 5224100, 5231100)) # Puyallup
-    rasterStack <- terra::crop(rasterStack, terra::ext(553800, 556000, 5187400, 5189400)) # Mashel
+    #rasterStack <- terra::crop(rasterStack, terra::ext(553800, 556000, 5187400, 5189400)) # Mashel
     
     # Predict probability raster
     probRaster <- terra::predict(
