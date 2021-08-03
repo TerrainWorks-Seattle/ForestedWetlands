@@ -4,6 +4,8 @@ tool_exec <- function(in_params, out_params) {
   
   if (!requireNamespace("randomForest", quietly = TRUE))
     install.packages("randomForest", quiet = TRUE)
+  if (!requireNamespace("ROCR", quietly = TRUE))
+    install.packages("ROCR", quiet = TRUE)
   if (!requireNamespace("terra", quietly = TRUE))
     install.packages("terra", quiet = TRUE)
   
