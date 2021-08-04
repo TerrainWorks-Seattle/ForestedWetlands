@@ -24,7 +24,7 @@ tool_exec <- function(in_params, out_params) {
         !all(dim(inputRaster) == dim(refRaster)) || 
         !all(terra::res(inputRaster) == terra::res(refRaster)) ||
         !all(terra::origin(inputRaster) == terra::origin(refRaster)) ||
-        terra::crs(inputRaster) != terra::crs(refRaster)
+        terra::crs(inputRaster, proj4 = TRUE) != terra::crs(refRaster, proj4 = TRUE)
       ) {
         inputRaster <- terra::project(inputRaster, refRaster)
       }
@@ -165,7 +165,7 @@ tool_exec <- function(in_params, out_params) {
     
     # For faster debugging: shrink the area to predict
     #rasterStack <- terra::crop(rasterStack, terra::ext(553800, 561200, 5224100, 5231100)) # Puyallup
-    #rasterStack <- terra::crop(rasterStack, terra::ext(553800, 556000, 5187400, 5189400)) # Mashel
+    #rasterStack <- terra::crop(rasterStack, terra::ext(550800, 558700, 5185900, 5191500)) # Mashel
     
     # Predict class probability raster
     probRaster <- terra::predict(
