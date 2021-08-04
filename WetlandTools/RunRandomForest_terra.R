@@ -68,7 +68,7 @@ tool_exec <- function(in_params, out_params) {
   modelName <- baseFilename(modelFile)
   
   # Set up logging
-  logFilename <- "run.log"
+  logFilename <- paste0(modelName, "_run.log")
   file.create(logFilename)
   
   cat(paste0("Current working directory: ", workingDir), file = logFilename)

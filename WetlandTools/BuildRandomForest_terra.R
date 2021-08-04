@@ -61,7 +61,7 @@ tool_exec <- function(in_params, out_params) {
   setwd(workingDir)
   
   # Set up logging
-  logFilename <- "build.log"
+  logFilename <- paste0(modelName, "_build.log")
   file.create(logFilename)
   
   cat(paste0("Current working directory: ", workingDir), file = logFilename)
