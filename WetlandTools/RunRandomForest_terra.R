@@ -24,7 +24,7 @@ tool_exec <- function(in_params, out_params) {
         !all(dim(inputRaster) == dim(refRaster)) || 
         !all(terra::res(inputRaster) == terra::res(refRaster)) ||
         !all(terra::origin(inputRaster) == terra::origin(refRaster)) ||
-        terra::crs(inputRaster, proj4 = TRUE) != terra::crs(refRaster, proj4 = TRUE)
+        terra::crs(inputRaster) != terra::crs(refRaster)
       ) {
         inputRaster <- terra::project(inputRaster, refRaster)
       }
