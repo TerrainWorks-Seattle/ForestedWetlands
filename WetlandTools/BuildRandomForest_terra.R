@@ -45,7 +45,7 @@ tool_exec <- function(in_params, out_params) {
   workingDir <- in_params[[1]]       # Working directory where model files will be stored
   inputRasterFiles <- in_params[[2]] # List of input raster filenames
   inputPointsFile <- in_params[[3]]  # Filename of point feature classified by wetland type
-  fieldName <- in_params[[4]]        # Classification filed name within the point feature class
+  fieldName <- in_params[[4]]        # Classification field name within the point feature class
   isWetLabel <- in_params[[5]]       # Classification label for is-a-wetland
   notWetLabel <- in_params[[6]]      # Classification label for not-a-wetland. Could be expanded to allow multiple names
   modelName <- in_params[[7]]        # Name for the generated RF model
@@ -176,6 +176,9 @@ tool_exec <- function(in_params, out_params) {
     )
     
     wetlandProbRaster <- probRaster[[isWetLabel]]
+    
+    # Write to disk; file type based on extension used for probRasterName
+    terra::writeRaster(wetlandProbRaster,probRasterName,overwrite=TRUE)
     
     if (calcStats) {
       
