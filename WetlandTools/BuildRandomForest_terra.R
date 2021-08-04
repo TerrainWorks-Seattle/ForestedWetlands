@@ -24,7 +24,7 @@ tool_exec <- function(in_params, out_params) {
         !all(dim(inputRaster) == dim(refRaster)) || 
         !all(terra::res(inputRaster) == terra::res(refRaster)) ||
         !all(terra::origin(inputRaster) == terra::origin(refRaster)) ||
-        terra::crs(inputRaster, proj4 = TRUE) != terra::crs(refRaster, proj4 = TRUE)
+        terra::crs(inputRaster, proj = TRUE) != terra::crs(refRaster, proj = TRUE)
       ) {
         inputRaster <- terra::project(inputRaster, refRaster)
       }
@@ -139,6 +139,7 @@ tool_exec <- function(in_params, out_params) {
   # Log model information
   capture.output(rfModel, file = logFilename, append = TRUE)
   capture.output(randomForest::importance(rfModel), file = logFilename, append = TRUE)
+ # capture.output(randomForest::confusionMatrix(rfModel), file = logFilename, append = TRUE)
   
   # Save the model
   modelFilename <- paste0(modelName, ".RFmodel")
