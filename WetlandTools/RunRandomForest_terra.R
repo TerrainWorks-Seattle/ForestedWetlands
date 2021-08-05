@@ -2,6 +2,10 @@ tool_exec <- function(in_params, out_params) {
   
   # ----- Install packages ---------------------------------------------------
   
+  if (!requireNamespace("devtools", quietly = TRUE))
+    install.packages("devtools", quiet = TRUE)
+  if (!requireNamespace("WetlandTools", quietly = TRUE))
+    devtools::install_github("tabrasel/WetlandTools")
   if (!requireNamespace("randomForest", quietly = TRUE))
     install.packages("randomForest", quiet = TRUE)
   if (!requireNamespace("ROCR", quietly = TRUE))
@@ -10,32 +14,6 @@ tool_exec <- function(in_params, out_params) {
     install.packages("terra", quiet = TRUE)
   
   # ----- Define helper functions --------------------------------------------
-  
-  alignRasters <- function(refRaster, inputRasters) {
-    
-    # Align each input raster with the reference raster
-    alignedRasters <- list()
-    for (i in seq_along(inputRasters)) {
-      inputRaster <- inputRasters[[i]]
-      
-      # Reproject the input raster if it doesn't align with the reference
-      if (
-        terra::ext(inputRaster) != terra::ext(refRaster) ||
-        !all(dim(inputRaster) == dim(refRaster)) || 
-        !all(terra::res(inputRaster) == terra::res(refRaster)) ||
-        !all(terra::origin(inputRaster) == terra::origin(refRaster)) ||
-        terra::crs(inputRaster) != terra::crs(refRaster)
-      ) {
-        inputRaster <- terra::project(inputRaster, refRaster)
-      }
-      
-      # Store the result
-      alignedRasters[[i]] <- inputRaster
-    }
-    
-    return(alignedRasters)
-    
-  }
   
   baseFilename <- function(file) {
     return(gsub(basename(file), pattern="\\..*$", replacement=""))
@@ -96,7 +74,7 @@ tool_exec <- function(in_params, out_params) {
   )
   
   # Make sure all the input rasters are aligned (with the first input raster)
-  rasterList <- alignRasters(rasterList[[1]], rasterList)
+  rasterList <- WetlandTools::alignRasters(rasterList[[1]], rasterList)
   
   # Combine input rasters into a stack
   rasterStack <- c(rasterList[[1]])
