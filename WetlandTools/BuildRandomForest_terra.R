@@ -213,7 +213,7 @@ tool_exec <- function(in_params, out_params) {
       names(pointValues)[1] <- "prob"
 
       # Calculate ROC statistics
-      pred <- ROCR::prediction(pointValues$prob, pointValues$class, label.ordering = c(isWetLabel, notWetLabel))
+      pred <- ROCR::prediction(pointValues$prob, pointValues$class, label.ordering = c(notWetLabel, isWetLabel))
       roc <- ROCR::performance(pred, measure = "tpr", x.measure = "fpr")
       auc <- ROCR::performance(pred, measure = "auc")
       precision <- ROCR::performance(pred, measure = "prec", x.measure = "rec")
@@ -290,7 +290,7 @@ if (FALSE) {
       modelName = "puy",
       calcStats = TRUE
     ),
-    out_params = list(probRasterName = "puy_prob")
+    out_params = list(probRasterName = NULL)
   )
 
   # Test in Mashel region

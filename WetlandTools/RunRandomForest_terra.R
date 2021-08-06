@@ -170,7 +170,7 @@ tool_exec <- function(in_params, out_params) {
   
   if (!is.null(probRasterName) && !is.na(probRasterName)) {
     # For faster debugging: shrink the area to predict
-    #rasterStack <- terra::crop(rasterStack, terra::ext(553800, 561200, 5224100, 5231100)) # Puyallup
+    rasterStack <- terra::crop(rasterStack, terra::ext(553800, 561200, 5224100, 5231100)) # Puyallup
     #rasterStack <- terra::crop(rasterStack, terra::ext(550800, 558700, 5185900, 5191500)) # Mashel
     
     # Predict probability raster
@@ -217,7 +217,7 @@ tool_exec <- function(in_params, out_params) {
       names(pointValues)[1] <- "prob"
       
       # Calculate ROC statistics
-      pred <- ROCR::prediction(pointValues$prob, pointValues$class, label.ordering = c(isWetLabel, notWetLabel))
+      pred <- ROCR::prediction(pointValues$prob, pointValues$class, label.ordering = c(notWetLabel, isWetLabel))
       roc <- ROCR::performance(pred, measure = "tpr", x.measure = "fpr")
       auc <- ROCR::performance(pred, measure = "auc")
       precision <- ROCR::performance(pred, measure = "prec", x.measure = "rec")
@@ -294,6 +294,20 @@ if (FALSE) {
       calcStats <- TRUE
     ),
     out_params = list(probRasterName = "mas_prob")
+  )
+  
+  tool_exec(
+    in_params = list(
+      workingDir = "E:/NetmapData/Puyallup",
+      modelFile = "puy.RFmodel",
+      inputRasterFiles = list("dev_300.flt", "grad_300.flt", "plan_300.flt", "prof_300.flt"),
+      testDataFile <- "wetlandPnts.shp",
+      fieldName <- "NEWCLASS",
+      isWetLabel <- "WET",
+      notWetLabel <- "UPL",
+      calcStats <- TRUE
+    ),
+    out_params = list(probRasterName = "puy_prob")
   )
   
   # Test Puyallup model in Mashel region (WORK2 desktop)
