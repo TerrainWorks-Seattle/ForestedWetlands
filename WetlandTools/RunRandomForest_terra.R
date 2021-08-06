@@ -35,10 +35,6 @@ tool_exec <- function(in_params, out_params) {
   calcStats <- in_params[[8]]
   probRasterName <- out_params[[1]]
   
-  # Validate parameters ------------------------------------------------------
-  
-  # TODO: Make sure no passed in args are illegal
-  
   # Setup --------------------------------------------------------------------
   
   setwd(workingDir)
@@ -51,6 +47,34 @@ tool_exec <- function(in_params, out_params) {
   
   cat(paste0("Current working directory: ", workingDir), file = logFilename)
   
+  # Validate parameters ------------------------------------------------------
+  
+  if (!file.exists(modelFile)) {
+    errMsg <- paste0("Error: Could not find model file: '", modelFile, "'\n")
+    cat(errMsg, file = logFilename, append = TRUE)
+    stop(errMsg)
+  }
+  
+  if (length(inputRasterFiles) < 1) {
+    errMsg <- "Error: Must provide at least one input raster.\n"
+    cat(errMsg, file = logFilename, append = TRUE)
+    stop(errMsg)
+  }
+  
+  lapply(inputRasterFiles, function(inputRasterFile) {
+    if (!file.exists(inputRasterFile)) {
+      errMsg <- paste0("Error: Could not find input raster: '", inputRasterFile, "'\n")
+      cat(errMsg, file = logFilename, append = TRUE)
+      stop(errMsg)
+    }
+  })
+  
+  if (!file.exists(testDataFile)) {
+    errMsg <- paste0("Error: Could not find test dataset: '", testDataFile, "'\n")
+    cat(errMsg, file = logFilename, append = TRUE)
+    stop(errMsg)
+  }
+  
   # Load Random Forest model -------------------------------------------------
   
   # Load the model
@@ -59,13 +83,20 @@ tool_exec <- function(in_params, out_params) {
   
   # Load input rasters -------------------------------------------------------
   
-  # Make sure the input rasters represent the variables expected by the model
+  # Make sure the input rasters match those expected by the model
   modelRastersFile <- sub(".RFmodel", ".RasterList", modelFile)
+  if (!file.exists(modelRastersFile)) {
+    errMsg <- paste0("Error: Could not find model raster list: '", modelRastersFile, "'\n")
+    cat(errMsg, file = logFilename, append = TRUE)
+    stop(errMsg)
+  }
   modelVarNames <- sort(readLines(modelRastersFile))
   inputVarNames <- sort(baseFilename(unlist(inputRasterFiles)))
-  
-  if (any(inputVarNames != modelVarNames))
-    stop("Input raster files do not match the model variables")
+  if (any(inputVarNames != modelVarNames)) {
+    errMsg <- paste0("Input raster names do not match the expected model variables (listed in: '", modelName, ".RasterList')")
+    cat(errMsg, file = logFilename, append = TRUE)
+    stop(errMsg)
+  }
   
   # Load each input raster individually
   rasterList <- lapply(
@@ -73,7 +104,7 @@ tool_exec <- function(in_params, out_params) {
     function(file) terra::rast(file)
   )
   
-  # Make sure all the input rasters are aligned (with the first input raster)
+  # Align all the input rasters (using the first as a reference)
   rasterList <- WetlandTools::alignRasters(rasterList[[1]], rasterList)
   
   # Combine input rasters into a stack
@@ -107,8 +138,16 @@ tool_exec <- function(in_params, out_params) {
     # Remove points with NA values
     pointValues <- na.omit(pointValues)
     
-    # Remove points that aren't labeled either "wetland" or "non-wetland"
+    # Make sure there are at least some test dataset points classified with
+    # the given wetland/non-wetland labels
     correctlyLabeledRows <- pointValues$class == isWetLabel | pointValues$class == notWetLabel
+    if (sum(correctlyLabeledRows) == 0) {
+      errMsg <- paste0("Error: Found no points in the test dataset with the 
+                       specified wetland/non-wetland classes: '", isWetLabel,
+                       "'/'", notWetLabel, "'\n")
+      cat(errMsg, file = logFilename, append = TRUE)
+      stop(errMsg)
+    }
     pointValues <- pointValues[correctlyLabeledRows,]
     
     # Convert class values to factors since Random Forest can't use strings as 
@@ -269,7 +308,7 @@ if (FALSE) {
       notWetLabel <- "UPL",
       calcStats <- FALSE
     ),
-    out_params = list(probRasterName = "puy_prob")
+    out_params = list(probRasterName = NULL)
   )
   
 }
