@@ -28,9 +28,11 @@ tool_exec <- function(in_params, out_params) {
   calcStats <- in_params[[8]]
   probRasterName <- out_params[[1]]
 
-  # Validate parameters ------------------------------------------------------
-
   # Setup --------------------------------------------------------------------
+
+  if (!file.exists(workingDir)) {
+    stop("Working directory: '", workingDir, "' does not exist")
+  }
 
   setwd(workingDir)
 
@@ -38,7 +40,29 @@ tool_exec <- function(in_params, out_params) {
   logFilename <- paste0(modelName, "_build.log")
   file.create(logFilename)
 
-  cat(paste0("Current working directory: ", workingDir), file = logFilename)
+  cat(paste0("Current working directory: ", workingDir, "\n"), file = logFilename)
+
+  # Validate parameters ------------------------------------------------------
+
+  if (length(inputRasterFiles) < 1) {
+    errMsg <- "Error: Must provide at least one input raster.\n"
+    cat(errMsg, file = logFilename, append = TRUE)
+    stop(errMsg)
+  }
+
+  lapply(inputRasterFiles, function(inputRasterFile) {
+    if (!file.exists(inputRasterFile)) {
+      errMsg <- paste0("Input raster: '", inputRasterFile, "' does not exist.\n")
+      cat(errMsg, file = logFilename, append = TRUE)
+      stop(errMsg)
+    }
+  })
+
+  if (!file.exists(trainingDatasetFile)) {
+    errMsg <- paste0("Training dataset: '", trainingDatasetFile, "' does not exist.\n")
+    cat(errMsg, file = logFilename, append = TRUE)
+    stop(errMsg)
+  }
 
   # Load classification points -----------------------------------------------
 
@@ -89,8 +113,18 @@ tool_exec <- function(in_params, out_params) {
   # Remove points with NA values
   pointValues <- na.omit(pointValues)
 
-  # Remove points that aren't labeled either "wetland" or "non-wetland"
+  # Make sure there are at least some training dataset points classified with
+  # the given wetland/non-wetland labels
   correctlyLabeledRows <- pointValues$class == isWetLabel | pointValues$class == notWetLabel
+  if (sum(correctlyLabeledRows) == 0) {
+    errMsg <- paste0("Error: No points in the training dataset with the
+                     specified wetland/non-wetland classes: '", isWetLabel,
+                     "'/'", notWetLabel, "'.")
+    cat(errMsg, file = logFilename, append = TRUE)
+    stop(errMsg)
+  }
+
+  # Remove points that aren't labeled either "wetland" or "non-wetland"
   pointValues <- pointValues[correctlyLabeledRows,]
 
   # Convert class values to factors since Random Forest can't use strings as
