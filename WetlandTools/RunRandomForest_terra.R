@@ -45,7 +45,7 @@ tool_exec <- function(in_params, out_params) {
   logFilename <- paste0(modelName, "_run.log")
   file.create(logFilename)
   
-  cat(paste0("Current working directory: ", workingDir), file = logFilename)
+  cat(paste0("Current working directory: ", workingDir, "\n"), file = logFilename)
   
   # Validate parameters ------------------------------------------------------
   
@@ -169,10 +169,6 @@ tool_exec <- function(in_params, out_params) {
   # Generate wetland probability raster --------------------------------------
   
   if (!is.null(probRasterName) && !is.na(probRasterName)) {
-    # For faster debugging: shrink the area to predict
-    rasterStack <- terra::crop(rasterStack, terra::ext(553800, 561200, 5224100, 5231100)) # Puyallup
-    #rasterStack <- terra::crop(rasterStack, terra::ext(550800, 558700, 5185900, 5191500)) # Mashel
-    
     # Predict probability raster
     probRaster <- terra::predict(
       rasterStack,
@@ -253,7 +249,6 @@ tool_exec <- function(in_params, out_params) {
       ROCR::plot(accuracy, main = paste0(modelName, "_acc"))
       dev.copy(win.metafile, paste0(modelName, "_acc.wmf"))
       dev.off()
-      
     }
   }
   

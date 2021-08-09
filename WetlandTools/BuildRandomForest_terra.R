@@ -171,10 +171,6 @@ tool_exec <- function(in_params, out_params) {
 
   if (!is.null(probRasterName) && nchar(probRasterName) > 0) {
 
-    # For faster debugging: shrink the area to predict
-    #rasterStack <- terra::crop(rasterStack, terra::ext(553800, 561200, 5224100, 5231100)) # Puyallup
-    #rasterStack <- terra::crop(rasterStack, terra::ext(550800, 558700, 5185900, 5191500)) # Mashel
-
     # Predict class probability raster
     probRaster <- terra::predict(
       rasterStack,
@@ -189,7 +185,6 @@ tool_exec <- function(in_params, out_params) {
     terra::writeRaster(wetlandProbRaster,probRasterName,overwrite=TRUE)
 
     if (calcStats) {
-
       # Sample probability raster readings at point locations
       pointValues <- terra::extract(wetlandProbRaster, classPoints, method = "simple")
 
@@ -251,7 +246,6 @@ tool_exec <- function(in_params, out_params) {
       dev.off()
 
     }
-
   }
 
   # Return -------------------------------------------------------------------
