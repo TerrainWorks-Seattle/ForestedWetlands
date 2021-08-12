@@ -4,8 +4,8 @@ tool_exec <- function(in_params, out_params) {
 
   if (!requireNamespace("devtools", quietly = TRUE))
     install.packages("devtools", quiet = TRUE)
-  if (!requireNamespace("WetlandTools", quietly = TRUE))
-    devtools::install_github("tabrasel/WetlandTools")
+  if (!requireNamespace("TerrainWorksUtils", quietly = TRUE))
+    devtools::install_github("tabrasel/TerrainWorksUtils")
   if (!requireNamespace("randomForest", quietly = TRUE))
     install.packages("randomForest", quiet = TRUE)
   if (!requireNamespace("ROCR", quietly = TRUE))
@@ -84,7 +84,7 @@ tool_exec <- function(in_params, out_params) {
   )
 
   # Make sure rasters are aligned (with the first input raster)
-  rasterList <- WetlandTools::alignRasters(rasterList[[1]], rasterList)
+  rasterList <- TerrainWorksUtils::alignRasters(rasterList[[1]], rasterList)
 
   # Combine individual rasters into a stack
   rasterStack <- c(rasterList[[1]])
