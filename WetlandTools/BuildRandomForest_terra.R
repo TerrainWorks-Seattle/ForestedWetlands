@@ -156,8 +156,10 @@ tool_exec <- function(in_params, out_params) {
   # Plot model statistics ----------------------------------------------------
 
   # Model error rates
+  errorRateNames <- colnames(rfModel$err.rate)
   dev.new()
   plot(rfModel, main = paste0(modelName, "_rfclass"))
+  legend("topright", errorRateNames, col= seq_along(errorRateNames), cex=0.8, fill = seq_along(errorRateNames))
   dev.copy(win.metafile, paste0(modelName, "_rfclass.wmf"))
   dev.off()
 
