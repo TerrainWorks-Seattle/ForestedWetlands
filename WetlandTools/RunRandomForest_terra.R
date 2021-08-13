@@ -174,51 +174,15 @@ tool_exec <- function(in_params, out_params) {
       type = "prob",
       newdata = pointValues[,-which(names(pointValues) == "class")]
     )[,isWetLabel]
-
+    
     # Calculate ROC stats
-    # rocStats <- TerrainWorksUtils::calcRocStats(
-    #   classes = pointValues$class,
-    #   probs = wetProb,
-    #   isWetLabel,
-    #   notWetLabel
-    # )
-
-    prediction <- ROCR::prediction(
-      predictions = wetProb,
-      labels = pointValues$class,
-      label.ordering = c(notWetLabel, isWetLabel)
+    rocStats <- TerrainWorksUtils::calcRocStats(
+      classes = pointValues$class,
+      probs = wetProb,
+      isWetLabel,
+      notWetLabel
     )
-
-    # Calculate the ROC curve
-    roc <- ROCR::performance(prediction, measure = "tpr", x.measure = "fpr")
-
-    # Calculate the area under the ROC curve (AUC)
-    auc <- ROCR::performance(prediction, measure = "auc")
-
-    # Calculate the max precision and its cutoff point
-    precision <- ROCR::performance(prediction, measure = "prec", x.measure = "rec")
-    maxPrecisionIndex <- which.max(methods::slot(precision, "y.values")[[1]])
-    prbe <- methods::slot(precision, "y.values")[[1]][maxPrecisionIndex]
-    maxPrecisionCutoff <- methods::slot(precision, "x.values")[[1]][maxPrecisionIndex]
-
-    # Calculate the max accuracy and its cutoff point
-    accuracy <- ROCR::performance(prediction, measure = "acc")
-    maxAccuracyIndex <- which.max(methods::slot(accuracy, "y.values")[[1]])
-    maxAccuracy <- methods::slot(accuracy, "y.values")[[1]][maxAccuracyIndex]
-    maxAccuracyCutoff <- methods::slot(accuracy, "x.values")[[1]][maxAccuracyIndex]
-
-    # Store ROC stats in a list
-    rocStats <- list(
-      roc = roc,
-      precision = precision,
-      accuracy = accuracy,
-      prbe = prbe,
-      maxPrecisionCutoff = maxPrecisionCutoff,
-      maxAccuracy = maxAccuracy,
-      maxAccuracyCutoff = maxAccuracyCutoff,
-      auc = auc
-    )
-
+    
     # Log ROC statistics
     cat(paste0("AUROC: ", rocStats$auc@y.values, "\n"), file = logFilename, append = TRUE)
     capture.output(c(PRBE = rocStats$prbe, cutoff = rocStats$maxPrecisionCutoff), file = logFilename, append = TRUE)
@@ -323,13 +287,13 @@ if (FALSE) {
   tool_exec(
     in_params = list(
       workingDir = "E:/NetmapData/Mashel",
-      modelFile = "puy.RFmodel",
-      inputRasterFiles = list("grad_60.flt", "dev_60.tif", "plan_60.flt", "prof_60.flt"),
+      modelFile = "puy_dev300_grad15_plan15_prof15.RFmodel",
+      inputRasterFiles = list("dev_300.tif", "grad_15.tif", "plan_15.tif", "prof_15.tif"),
       testDataFile <- "mashelPoints.shp",
       fieldName <- "NEWCLASS",
       isWetLabel <- "WET",
       notWetLabel <- "UPL",
-      calcStats <- FALSE
+      calcStats <- TRUE
     ),
     out_params = list(probRasterName = NULL)
   )

@@ -168,86 +168,71 @@ tool_exec <- function(in_params, out_params) {
   randomForest::varImpPlot(rfModel, sort = TRUE, main = paste0(modelName, "_importance"))
   dev.copy(win.metafile, paste0(modelName, "_importance.wmf"))
   dev.off()
-
-  # Generate probability raster ----------------------------------------------
-
-  if (!is.null(probRasterName) && nchar(probRasterName) > 0) {
-
-    # Predict class probability raster
+  
+  # Calculate ROC statistics -------------------------------------------------
+  
+  if (calcStats) {
+    
+    # Calculate wetland probability for each test point
+    wetProb <- predict(
+      rfModel,
+      type = "prob",
+      newdata = pointValues[,-which(names(pointValues) == "class")]
+    )[,isWetLabel]
+    
+    # Calculate ROC stats
+    rocStats <- TerrainWorksUtils::calcRocStats(
+      classes = pointValues$class,
+      probs = wetProb,
+      isWetLabel,
+      notWetLabel
+    )
+    
+    # Log ROC statistics
+    cat(paste0("AUROC: ", rocStats$auc@y.values, "\n"), file = logFilename, append = TRUE)
+    capture.output(c(PRBE = rocStats$prbe, cutoff = rocStats$maxPrecisionCutoff), file = logFilename, append = TRUE)
+    capture.output(c(accuracy = rocStats$maxAccuracy, cutoff = rocStats$maxAccuracyCutoff), file = logFilename, append = TRUE)
+    
+    # Display ROC plot
+    dev.new()
+    ROCR::plot(rocStats$roc, main = paste0(modelName, "_roc"))
+    abline(a = 0, b = 1)
+    dev.copy(win.metafile, paste0(modelName, "_roc.wmf"))
+    dev.off()
+    
+    # Display precision-recall plot
+    dev.new()
+    ROCR::plot(rocStats$precision, main = paste0(modelName, "_prc"))
+    dev.copy(win.metafile, paste0(modelName, "_prc.wmf"))
+    dev.off()
+    
+    # Display accuracy plot
+    dev.new()
+    ROCR::plot(rocStats$accuracy, main = paste0(modelName, "_acc"))
+    dev.copy(win.metafile, paste0(modelName, "_acc.wmf"))
+    dev.off()
+  }
+  
+  # Generate wetland probability raster --------------------------------------
+  
+  if (!is.null(probRasterName) && !is.na(probRasterName)) {
+    # Predict probability rasters for wetland and non-wetland
     probRaster <- terra::predict(
       rasterStack,
       rfModel,
       na.rm = TRUE,
       type = "prob"
     )
-
-    wetlandProbRaster <- probRaster[[isWetLabel]]
-
-    # Write to disk; file type based on extension used for probRasterName
-    terra::writeRaster(wetlandProbRaster,probRasterName,overwrite=TRUE)
-
-    if (calcStats) {
-      # Sample probability raster readings at point locations
-      pointValues <- terra::extract(wetlandProbRaster, classPoints, method = "simple")
-
-      # Include point classification values
-      pointValues["class"] <- terra::values(classPoints)
-
-      # Remove point "ID" column
-      pointValues <- pointValues[,-1]
-
-      # Remove points with NA values
-      pointValues <- na.omit(pointValues)
-
-      # Remove points that aren't labeled either "wetland" or "non-wetland"
-      correctlyLabeledRows <- pointValues$class == isWetLabel | pointValues$class == notWetLabel
-      pointValues <- pointValues[correctlyLabeledRows,]
-
-      # Convert class values to factors since Random Forest can't use strings as
-      # predictor variables
-      pointValues$class <- factor(pointValues$class)
-
-      names(pointValues)[1] <- "prob"
-
-      # Calculate ROC statistics
-      pred <- ROCR::prediction(pointValues$prob, pointValues$class, label.ordering = c(notWetLabel, isWetLabel))
-      roc <- ROCR::performance(pred, measure = "tpr", x.measure = "fpr")
-      auc <- ROCR::performance(pred, measure = "auc")
-      precision <- ROCR::performance(pred, measure = "prec", x.measure = "rec")
-      accuracy <- ROCR::performance(pred, measure = "acc")
-
-      cat(paste0("AUROC: ", auc@y.values, "\n"), file = logFilename, append = TRUE)
-
-      idx <- which.max(slot(precision, "y.values")[[1]])
-      prbe <- slot(precision, "y.values")[[1]][idx]
-      cutoff <- slot(precision, "x.values")[[1]][idx]
-      capture.output(c(PRBE = prbe, cutoff = cutoff), file = logFilename, append = TRUE)
-
-      idx <- which.max(slot(accuracy, "y.values")[[1]])
-      maxacc <- slot(accuracy, "y.values")[[1]][idx]
-      cutoff <- slot(accuracy, "x.values")[[1]][idx]
-      capture.output(c(accuracy = maxacc, cutoff = cutoff), file = logFilename, append = TRUE)
-
-      # Plot ROC
-      dev.new()
-      ROCR::plot(roc, main = paste0(modelName, "_roc"))
-      abline(a = 0, b = 1)
-      dev.copy(win.metafile, paste0(modelName, "_roc.wmf"))
-      dev.off()
-
-      # Plot precision
-      dev.new()
-      ROCR::plot(precision, main = paste0(modelName, "_prc"))
-      dev.copy(win.metafile, paste0(modelName, "_prc.wmf"))
-      dev.off()
-
-      # Plot accuracy
-      dev.new()
-      ROCR::plot(accuracy, main = paste0(modelName, "_acc"))
-      dev.copy(win.metafile, paste0(modelName, "_acc.wmf"))
-      dev.off()
-
-    }
+    
+    # Save the wetland probability raster
+    wetProbRaster <- probRaster[[isWetLabel]]
+    terra::writeRaster(
+      wetProbRaster,
+      filename = paste0(probRasterName, ".tif"),
+      overwrite = TRUE
+    )
+    
+    cat(paste0("Created probability raster: ", paste0(probRasterName, ".tif"), "\n"), file = logFilename, append = TRUE)
   }
 
   # Return -------------------------------------------------------------------
