@@ -190,14 +190,14 @@ tool_exec <- function(in_params, out_params) {
 
     # Display ROC plot
     dev.new()
-    ROCR::plot(rocStats$roc, main = paste0(modelName, "_roc"))
+    ROCR::plot(rocStats$roc, colorize = TRUE, main = paste0(modelName, "_roc"))
     abline(a = 0, b = 1)
     dev.copy(win.metafile, paste0(modelName, "_roc.wmf"))
     dev.off()
 
     # Display precision-recall plot
     dev.new()
-    ROCR::plot(rocStats$precision, main = paste0(modelName, "_prc"))
+    ROCR::plot(rocStats$precision, colorize = TRUE, main = paste0(modelName, "_prc"))
     dev.copy(win.metafile, paste0(modelName, "_prc.wmf"))
     dev.off()
 
