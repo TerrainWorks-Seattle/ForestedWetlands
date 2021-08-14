@@ -119,7 +119,7 @@ class SurfaceMetrics(object):
             datatype = 'DEFolder',
             parameterType = 'Optional',
             direction = 'Input',
-            enabled = False)
+            enabled = True)
         
         params = [param0, param1, param2, param3, param4, param5, param6, param7, param8, param9]
     #   0 = DEM
@@ -279,6 +279,14 @@ class SurfaceMetrics(object):
                 subprocess.run([command, inputfilename])
             except OSError:
                 messages.addErrorMessage('LocalRelief failed')
+
+        # Reformat .flt rasters as .tif
+        for key in requestedRasters:
+            rasterPath = requestedRasters[key]
+            r = arcpy.Raster(rasterPath + '.flt')
+            r.save(rasterPath + '.tif')
+            os.remove(rasterPath + '.flt')
+            
         return
 
 class TopographicWetnessIndex(object):
@@ -387,7 +395,7 @@ class TopographicWetnessIndex(object):
             if not foundMakeGrids:
                 parameters[6].enabled = True
             else:
-                parameters[6].enabled = False
+                parameters[6].enabled = False        
         return
 
     def updateMessages(self, parameters):
