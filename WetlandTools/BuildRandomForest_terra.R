@@ -109,22 +109,25 @@ tool_exec <- function(in_params, out_params) {
   # Rename the column heading to class
   names(classPoints)[1] <- "class"
 
-  # Extract raster values at point locations
+  # Extract raster value(s) at each training point
   pointValues <- terra::extract(rasterStack, classPoints, method = "simple")
 
-  # Extract shape values at point locations
+  # Extract shape value(s) at each training point
   for (shape in shapeList) {
-    pointCoords <- allPoints[,-seq_len(ncol(allPoints))]
-    projectedPoints <- terra::project(pointCoords, shape)
-    intersectionPoints <- terra::intersect(projectedPoints, shape)
-    intersectionValues <- terra::values(intersectionPoints)
+    # Project the points into the same CRS as the shape
+    projectedPoints <- terra::project(allPoints, shape)
 
-    # Include each field in the shape
-    for (field in names(intersectionValues)) {
+    # Extract shape value(s)
+    shapeValues <- terra::extract(shape, projectedPoints)[,-1]
+
+    # Add shape value(s) to point values
+    for (field in names(shapeValues)) {
       # Convert string fields to factors
-      if (is.character(intersectionValues[[field]]))
-        intersectionValues[[field]] <- factor(intersectionValues[[field]])
-      pointValues[[field]] <- intersectionValues[[field]]
+      if (is.character(shapeValues[[field]]))
+        shapeValues[[field]] <- factor(shapeValues[[field]])
+
+      # Add the field values to the df of point values
+      pointValues[[field]] <- shapeValues[[field]]
     }
   }
 
