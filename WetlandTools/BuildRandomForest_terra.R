@@ -21,7 +21,7 @@ tool_exec <- function(in_params, out_params) {
   workingDir <- in_params[[1]]          # Working directory where model files will be stored
   inputRasterFiles <- in_params[[2]]    # List of input raster filenames
   inputShapeFiles <- in_params[[3]]     # List of input shape filenames
-  trainingDatasetFile <- in_params[[4]] # Filename of point feature classified by wetland type
+  trainingPointsFile <- in_params[[4]] # Filename of point feature classified by wetland type
   classFieldName <- in_params[[5]]      # Name of the class field in the training dataset
   wetlandClass <- in_params[[6]]        # Class name for wetlands
   nonwetlandClass <- in_params[[7]]     # Class name for non-wetlands
@@ -45,8 +45,8 @@ tool_exec <- function(in_params, out_params) {
 
   # Validate parameters ------------------------------------------------------
 
-  if (length(inputRasterFiles) < 1) {
-    errMsg <- "Error: Must provide at least one input raster.\n"
+  if (length(inputRasterFiles) == 0 && length(inputShapeFiles) == 0) {
+    errMsg <- "Must provide at least one input raster or shape.\n"
     cat(errMsg, file = logFilename, append = TRUE)
     stop(errMsg)
   }
@@ -59,113 +59,131 @@ tool_exec <- function(in_params, out_params) {
     }
   })
 
-  if (!file.exists(trainingDatasetFile)) {
-    errMsg <- paste0("Training dataset: '", trainingDatasetFile, "' does not exist.\n")
+  if (!file.exists(trainingPointsFile)) {
+    errMsg <- paste0("Training dataset: '", trainingPointsFile, "' does not exist.\n")
     cat(errMsg, file = logFilename, append = TRUE)
     stop(errMsg)
   }
 
-  # Load input data ------------------------------------------------------------
+  # Load input explanatory data ------------------------------------------------
 
   ## Load input rasters --------------------------------------------------------
 
-  # Load each raster individually
-  rasterList <- lapply(
-    inputRasterFiles,
-    function(rasterFile) terra::rast(rasterFile)
-  )
+  if (length(inputRasterFiles) > 0) {
+    if (length(inputRasterFiles) == 1) {
+      rasterStack <- terra::rast(inputRasterFiles[[1]])
+    } else {
+      # Load each raster individually
+      rasterList <- lapply(
+        inputRasterFiles,
+        function(rasterFile) terra::rast(rasterFile)
+      )
 
-  # Make sure rasters are aligned (with the first input raster)
-  rasterList <- TerrainWorksUtils::alignRasters(rasterList[[1]], rasterList)
+      # Make sure rasters are aligned (with the first input raster)
+      rasterList <- TerrainWorksUtils::alignRasters(rasterList[[1]], rasterList)
 
-  # Combine individual rasters into a stack
-  rasterStack <- c(rasterList[[1]])
-  for (i in 2:length(rasterList)) {
-    rasterStack <- c(rasterStack, rasterList[[i]])
+      # Combine individual rasters into a stack
+      rasterStack <- c(rasterList[[1]])
+      for (i in 2:length(rasterList)) {
+        rasterStack <- c(rasterStack, rasterList[[i]])
+      }
+    }
+
+    # Save input raster names
+    rasterNames <- names(rasterStack)
+    rasterNamesFilename <- paste0(modelName, ".RasterList")
+    writeLines(rasterNames, rasterNamesFilename)
+
+    cat(paste0("Raster names saved in ", rasterNamesFilename, "\n"), file = logFilename, append = TRUE)
   }
-
-  # Save input raster names
-  rasterNames <- names(rasterStack)
-  rasterNamesFilename <- paste0(modelName, ".RasterList")
-  writeLines(rasterNames, rasterNamesFilename)
-
-  cat(paste0("Raster names saved in ", rasterNamesFilename, "\n"), file = logFilename, append = TRUE)
 
   ## Load input shapes ---------------------------------------------------------
 
-  shapeList <- lapply(
-    inputShapeFiles,
-    function(shapeFile) terra::vect(shapeFile)
+  if (length(inputShapeFiles) > 0) {
+    # Load each shape individually
+    shapeList <- lapply(
+      inputShapeFiles,
+      function(shapeFile) terra::vect(shapeFile)
+    )
+
+    # Save input shape names
+    shapeNames <- sub("\\..*$", "", inputShapeFiles)
+    shapeNamesFilename <- paste0(modelName, ".ShapeList")
+    writeLines(shapeNames, shapeNamesFilename)
+
+    cat(paste0("Shape names saved in ", shapeNamesFilename, "\n"), file = logFilename, append = TRUE)
+  }
+
+  # Build training dataset -----------------------------------------------------
+
+  # Load the training points
+  trainingPoints <- terra::vect(trainingPointsFile)
+
+  # Define the training dataset, which will store both the predictor variables
+  # and the response variable (class)
+  trainingDf <- data.frame(
+    class = terra::values(trainingPoints)[[classFieldName]]
   )
 
-  # Load training dataset ------------------------------------------------------
+  # Extract raster value(s) at each training point and add them to the training
+  # dataset
+  if (length(inputRasterFiles) == 1) {
+    rasterVar <- terra::extract(rasterStack, trainingPoints, method = "simple")[,-1]
+    trainingDf[[names(rasterStack)[1]]] <- rasterVar
+  } else if (length(inputRasterFiles) > 1) {
+    rasterVarsDf <- terra::extract(rasterStack, trainingPoints, method = "simple")[,-1]
+    trainingDf <- cbind(trainingDf, rasterVarsDf)
+  }
 
-  # Load the points training dataset
-  allPoints <- terra::vect(trainingDatasetFile)
+  # Extract shape value(s) at each training point and add them to the training
+  # dataset
+  if (length(inputShapeFiles) > 0) {
+    for (shape in shapeList) {
+      # Project the training points into the same CRS as the shape
+      projectedPoints <- terra::project(trainingPoints, shape)
 
-  # Keep only the column with the input field that holds the wetland Class
-  classPoints <- allPoints[, classFieldName]
+      # Extract shape value(s) at each training point
+      shapeVarsDf <- terra::extract(shape, projectedPoints)[,-1]
 
-  # Rename the column heading to class
-  names(classPoints)[1] <- "class"
-
-  # Extract raster value(s) at each training point
-  pointValues <- terra::extract(rasterStack, classPoints, method = "simple")
-
-  # Extract shape value(s) at each training point
-  for (shape in shapeList) {
-    # Project the points into the same CRS as the shape
-    projectedPoints <- terra::project(allPoints, shape)
-
-    # Extract shape value(s)
-    shapeValues <- terra::extract(shape, projectedPoints)[,-1]
-
-    # Add shape value(s) to point values
-    for (field in names(shapeValues)) {
-      # Convert string fields to factors
-      if (is.character(shapeValues[[field]]))
-        shapeValues[[field]] <- factor(shapeValues[[field]])
-
-      # Add the field values to the df of point values
-      pointValues[[field]] <- shapeValues[[field]]
+      # Add value(s) to training data
+      for (field in names(shapeVarsDf)) {
+        # Convert string fields to factors
+        if (is.character(shapeVarsDf[[field]]))
+          shapeVarsDf[[field]] <- factor(shapeVarsDf[[field]])
+        trainingDf[[field]] <- shapeVarsDf[[field]]
+      }
     }
   }
 
-  # Remove point "ID" column
-  pointValues <- pointValues[,-1]
-
-  # Include point classification values
-  pointValues["class"] <- terra::values(classPoints)
-
   # Make sure there are at least some training dataset points classified with
-  # the given wetland/non-wetland labels
-  correctlyLabeledRows <- pointValues$class == wetlandClass | pointValues$class == nonwetlandClass
-  if (sum(correctlyLabeledRows) == 0) {
-    errMsg <- paste0("Error: No points in the training dataset with the
-                     specified wetland/non-wetland classes: '", wetlandClass,
-                     "'/'", nonwetlandClass, "'.")
+  # the given wetland/non-wetland class names
+  correctlyLabeledPointIndices <- trainingDf$class == wetlandClass | trainingDf$class == nonwetlandClass
+  if (sum(correctlyLabeledPointIndices) == 0) {
+    errMsg <- paste0("No points in the training dataset with the specified
+                     wetland/non-wetland classes: '", wetlandClass, "'/'",
+                     nonwetlandClass, "'.")
     cat(errMsg, file = logFilename, append = TRUE)
     stop(errMsg)
   }
 
-  # Remove points that aren't labeled either "wetland" or "non-wetland"
-  pointValues <- pointValues[correctlyLabeledRows,]
+  # Convert class field to factor
+  trainingDf$class <- factor(trainingDf$class)
+
+  # Remove points that aren't labeled wetland/non-wetland
+  trainingDf <- trainingDf[correctlyLabeledPointIndices,]
 
   # Remove points with NA values
-  pointValues <- na.omit(pointValues)
-
-  # Convert class field to factor
-  pointValues$class <- factor(pointValues$class)
+  trainingDf <- na.omit(trainingDf)
 
   cat("Ground-truth classifications:\n", file = logFilename, append = TRUE)
-  capture.output(summary(pointValues$class), file = logFilename, append = TRUE)
+  capture.output(summary(trainingDf$class), file = logFilename, append = TRUE)
 
   # Build Random Forest model ------------------------------------------------
 
   # Build a model that predicts "class" from all input variables
   rfModel <- randomForest::randomForest(
     class ~ .,
-    data = pointValues,
+    data = trainingDf,
     ntree = 200,
     importance = TRUE
   )
@@ -190,10 +208,13 @@ tool_exec <- function(in_params, out_params) {
   dev.off()
 
   # Model variable importance
-  dev.new()
-  randomForest::varImpPlot(rfModel, sort = TRUE, main = paste0(modelName, "_importance"))
-  dev.copy(win.metafile, paste0(modelName, "_importance.wmf"))
-  dev.off()
+  predictorVarCount <- ncol(trainingDf) - 1
+  if (predictorVarCount > 1) {
+    dev.new()
+    randomForest::varImpPlot(rfModel, sort = TRUE, main = paste0(modelName, "_importance"))
+    dev.copy(win.metafile, paste0(modelName, "_importance.wmf"))
+    dev.off()
+  }
 
   # Calculate ROC statistics -------------------------------------------------
 
@@ -203,12 +224,12 @@ tool_exec <- function(in_params, out_params) {
     wetProb <- predict(
       rfModel,
       type = "prob",
-      newdata = pointValues[,-which(names(pointValues) == "class")]
+      newdata = trainingDf
     )[,wetlandClass]
 
     # Calculate ROC stats
     rocStats <- TerrainWorksUtils::calcRocStats(
-      classes = pointValues$class,
+      classes = trainingDf$class,
       probs = wetProb,
       wetlandClass,
       nonwetlandClass
