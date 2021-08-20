@@ -131,32 +131,39 @@ tool_exec <- function(in_params, out_params) {
     class = terra::values(trainingPoints)[[classFieldName]]
   )
 
-  # Extract raster value(s) at each training point and add them to the training
-  # dataset
-  if (length(inputRasterFiles) == 1) {
-    rasterVar <- terra::extract(rasterStack, trainingPoints, method = "simple")[,-1]
-    trainingDf[[names(rasterStack)[1]]] <- rasterVar
-  } else if (length(inputRasterFiles) > 1) {
-    rasterVarsDf <- terra::extract(rasterStack, trainingPoints, method = "simple")[,-1]
-    trainingDf <- cbind(trainingDf, rasterVarsDf)
+  # If any rasters were input, extract their value(s) at each training point and
+  # add those to the training dataset
+  if (length(inputRasterFiles) > 0) {
+    rasterValues <- terra::extract(rasterStack, trainingPoints, method = "simple")[,-1]
+    if (length(inputRasterFiles) == 1) {
+      trainingDf[[names(rasterStack)[1]]] <- rasterValues
+    } else {
+      trainingDf <- cbind(trainingDf, rasterValues)
+    }
   }
-
-  # Extract shape value(s) at each training point and add them to the training
-  # dataset
+  
+  # If any shapes were input, extract their value(s) at each training point and 
+  # add those to the training dataset
   if (length(inputShapeFiles) > 0) {
     for (shape in shapeList) {
       # Project the training points into the same CRS as the shape
       projectedPoints <- terra::project(trainingPoints, shape)
 
       # Extract shape value(s) at each training point
-      shapeVarsDf <- terra::extract(shape, projectedPoints)[,-1]
+      shapeValues <- terra::extract(shape, projectedPoints)[,-1]
 
-      # Add value(s) to training data
-      for (field in names(shapeVarsDf)) {
-        # Convert string fields to factors
-        if (is.character(shapeVarsDf[[field]]))
-          shapeVarsDf[[field]] <- factor(shapeVarsDf[[field]])
-        trainingDf[[field]] <- shapeVarsDf[[field]]
+      if (ncol(shape) == 1) {
+        if (is.character(shapeValues))
+          shapeValues <- factor(shapeValues)
+        trainingDf[[names(shape)]] <- shapeValues 
+      } else {
+        # Add value(s) to training data
+        for (field in names(shapeValues)) {
+          # Convert string fields to factors
+          if (is.character(shapeValues[[field]]))
+            shapeValues[[field]] <- factor(shapeValues[[field]])
+          trainingDf[[field]] <- shapeValues[[field]]
+        }   
       }
     }
   }
@@ -317,13 +324,13 @@ if (FALSE) {
   tool_exec(
     in_params = list(
       workingDir = "E:/NetmapData/Puyallup",
-      inputRasterFiles = list("grad_300.flt", "dev_300.flt", "plan_300.flt", "prof_300.flt"),
-      inputShapeFiles = list(),
+      inputRasterFiles = list("grad_15.tif", "dev_300.flt"),
+      inputShapeFiles = list("geo.shp"),
       trainingDatasetFile = "wetlandPnts.shp",
       classFieldName = "NEWCLASS",
       wetlandClass = "WET",
       nonwetlandClass = "UPL",
-      modelName = "puy",
+      modelName = "puy_grad15_dev300_geo",
       calcStats = TRUE
     ),
     out_params = list(probRasterName = NULL)
