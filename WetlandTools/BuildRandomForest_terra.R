@@ -1,6 +1,6 @@
 tool_exec <- function(in_params, out_params) {
 
-  # ----- Install required packages ------------------------------------------
+  # Install required packages --------------------------------------------------
 
   if (!requireNamespace("devtools", quietly = TRUE))
     install.packages("devtools", quiet = TRUE)
@@ -13,7 +13,7 @@ tool_exec <- function(in_params, out_params) {
   if (!requireNamespace("terra", quietly = TRUE))
     install.packages("terra", quiet = TRUE)
 
-  # ----- Set input/output parameters ----------------------------------------
+  # Set input/output parameters ------------------------------------------------
 
   # TODO: Try indexing in_params like in_params[["workingDir"]] so it returns
   # NULL if missing rather than stopping the program.
@@ -29,7 +29,7 @@ tool_exec <- function(in_params, out_params) {
   calcStats <- in_params[[9]]
   probRasterName <- out_params[[1]]
 
-  # Setup --------------------------------------------------------------------
+  # Setup ----------------------------------------------------------------------
 
   if (!file.exists(workingDir)) {
     stop("Working directory: '", workingDir, "' does not exist")
@@ -43,7 +43,7 @@ tool_exec <- function(in_params, out_params) {
 
   cat(paste0("Current working directory: ", workingDir, "\n"), file = logFilename)
 
-  # Validate parameters ------------------------------------------------------
+  # Validate parameters --------------------------------------------------------
 
   if (length(inputRasterFiles) == 0 && length(inputShapeFiles) == 0) {
     errMsg <- "Must provide at least one input raster or shape.\n"
@@ -65,9 +65,13 @@ tool_exec <- function(in_params, out_params) {
     stop(errMsg)
   }
 
-  # Load input explanatory data ------------------------------------------------
+  # Load input data ------------------------------------------------------------
 
   ## Load input rasters --------------------------------------------------------
+
+  # Create a file that lists the input rasters
+  rasterNamesFile <- paste0(modelName, ".RasterList")
+  file.create(rasterNamesFile)
 
   if (length(inputRasterFiles) > 0) {
     if (length(inputRasterFiles) == 1) {
@@ -89,15 +93,18 @@ tool_exec <- function(in_params, out_params) {
       }
     }
 
-    # Save input raster names
+    # Write raster names
     rasterNames <- names(rasterStack)
-    rasterNamesFilename <- paste0(modelName, ".RasterList")
-    writeLines(rasterNames, rasterNamesFilename)
-
-    cat(paste0("Raster names saved in ", rasterNamesFilename, "\n"), file = logFilename, append = TRUE)
+    writeLines(rasterNames, rasterNamesFile)
   }
 
+  cat(paste0("Raster names saved in ", rasterNamesFile, "\n"), file = logFilename, append = TRUE)
+
   ## Load input shapes ---------------------------------------------------------
+
+  # Create a file that lists the input shapes
+  shapeNamesFile <- paste0(modelName, ".ShapeList")
+  file.create(shapeNamesFile)
 
   if (length(inputShapeFiles) > 0) {
     # Load each shape individually
@@ -106,13 +113,12 @@ tool_exec <- function(in_params, out_params) {
       function(shapeFile) terra::vect(shapeFile)
     )
 
-    # Save input shape names
+    # Write shape names
     shapeNames <- sub("\\..*$", "", inputShapeFiles)
-    shapeNamesFilename <- paste0(modelName, ".ShapeList")
-    writeLines(shapeNames, shapeNamesFilename)
-
-    cat(paste0("Shape names saved in ", shapeNamesFilename, "\n"), file = logFilename, append = TRUE)
+    writeLines(shapeNames, shapeNamesFile)
   }
+
+  cat(paste0("Shape names saved in ", shapeNamesFile, "\n"), file = logFilename, append = TRUE)
 
   # Build training dataset -----------------------------------------------------
 

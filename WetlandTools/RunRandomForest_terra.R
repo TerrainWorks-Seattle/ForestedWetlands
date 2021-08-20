@@ -1,6 +1,6 @@
 tool_exec <- function(in_params, out_params) {
 
-  # ----- Install packages ---------------------------------------------------
+  # Install packages -----------------------------------------------------------
 
   if (!requireNamespace("devtools", quietly = TRUE))
     install.packages("devtools", quiet = TRUE)
@@ -13,29 +13,30 @@ tool_exec <- function(in_params, out_params) {
   if (!requireNamespace("terra", quietly = TRUE))
     install.packages("terra", quiet = TRUE)
 
-  # ----- Define helper functions --------------------------------------------
+  # Define helper functions ----------------------------------------------------
 
   baseFilename <- function(file) {
     return(gsub(basename(file), pattern="\\..*$", replacement=""))
   }
 
-  # ----- Set input/output parameters ----------------------------------------
+  # Set input/output parameters ------------------------------------------------
 
   # TODO: Try indexing in_params using the parameter names specified in the ArcGIS tool.
   # Ex: in_params[["Working_Directory"]]
   # Indexing by name returns NULL when missing instead of causing an error when indexing by number.
 
-  workingDir <- in_params[[1]]       # Working directory where model files will be stored
+  workingDir <- in_params[[1]]       # Working directory where model files can be found and output files will be saved in
   modelFile <- in_params[[2]]        # Filename of the model
   inputRasterFiles <- in_params[[3]] # List of input raster filenames
-  testDataFile <- in_params[[4]]     # Points to run the model on
-  fieldName <- in_params[[5]]        # Classification field name within the point feature class
-  isWetLabel <- in_params[[6]]       # Classwetland
-  notWetLabel <- in_params[[7]]
-  calcStats <- in_params[[8]]
+  inputShapeFiles <- in_params[[4]]  # List of input shape filenames
+  testPointsFile <- in_params[[5]]   # Filename of point feature classified by wetland type
+  classFieldName <- in_params[[6]]   # Name of the class field in the test dataset
+  wetlandClass <- in_params[[7]]     # Class name for wetlands
+  nonwetlandClass <- in_params[[8]]  # Class name for non-wetlands
+  calcStats <- in_params[[9]]
   probRasterName <- out_params[[1]]
 
-  # Setup --------------------------------------------------------------------
+  # Setup ----------------------------------------------------------------------
 
   setwd(workingDir)
 
@@ -47,124 +48,190 @@ tool_exec <- function(in_params, out_params) {
 
   cat(paste0("Current working directory: ", workingDir, "\n"), file = logFilename)
 
-  # Validate parameters ------------------------------------------------------
+  # Validate parameters --------------------------------------------------------
 
   if (!file.exists(modelFile)) {
-    errMsg <- paste0("Error: Could not find model file: '", modelFile, "'\n")
+    errMsg <- paste0("Could not find model file: '", modelFile, "'\n")
     cat(errMsg, file = logFilename, append = TRUE)
     stop(errMsg)
   }
 
-  if (length(inputRasterFiles) < 1) {
-    errMsg <- "Error: Must provide at least one input raster.\n"
+  if (length(inputRasterFiles) == 0 && length(inputShapeFiles) == 0) {
+    errMsg <- "Must provide at least one input raster or shape.\n"
     cat(errMsg, file = logFilename, append = TRUE)
     stop(errMsg)
   }
 
   lapply(inputRasterFiles, function(inputRasterFile) {
     if (!file.exists(inputRasterFile)) {
-      errMsg <- paste0("Error: Could not find input raster: '", inputRasterFile, "'\n")
+      errMsg <- paste0("Could not find input raster: '", inputRasterFile, "'\n")
       cat(errMsg, file = logFilename, append = TRUE)
       stop(errMsg)
     }
   })
 
-  if (!file.exists(testDataFile)) {
-    errMsg <- paste0("Error: Could not find test dataset: '", testDataFile, "'\n")
+  if (!file.exists(testPointsFile)) {
+    errMsg <- paste0("Could not find test points dataset: '", testPointsFile, "'\n")
     cat(errMsg, file = logFilename, append = TRUE)
     stop(errMsg)
   }
 
-  # Load Random Forest model -------------------------------------------------
+  # Load model -----------------------------------------------------------------
 
   # Load the model
   load(modelFile)
   cat(paste0("Loaded model: ", modelFile), file = logFilename, append = TRUE)
 
-  # Load input rasters -------------------------------------------------------
+  # Load input data ------------------------------------------------------------
+
+  ## Load input rasters --------------------------------------------------------
 
   # Make sure the input rasters match those expected by the model
-  modelRastersFile <- sub(".RFmodel", ".RasterList", modelFile)
-  if (!file.exists(modelRastersFile)) {
-    errMsg <- paste0("Error: Could not find model raster list: '", modelRastersFile, "'\n")
+  rasterNamesFile <- sub(".RFmodel", ".RasterList", modelFile)
+  if (!file.exists(rasterNamesFile)) {
+    errMsg <- paste0("Could not find model raster list: '", rasterNamesFile, "'\n")
     cat(errMsg, file = logFilename, append = TRUE)
     stop(errMsg)
   }
-  modelVarNames <- sort(readLines(modelRastersFile))
-  inputVarNames <- sort(baseFilename(unlist(inputRasterFiles)))
-  if (any(inputVarNames != modelVarNames)) {
-    errMsg <- paste0("Input raster names do not match the expected model variables (listed in: '", modelName, ".RasterList')")
+  expectedRasterNames <- sort(readLines(rasterNamesFile))
+  inputRasterNames <- sort(baseFilename(unlist(inputRasterFiles)))
+  if (any(inputRasterNames != expectedRasterNames)) {
+    errMsg <- paste0("Input raster names do not match those expected by the model (listed in: '", modelName, ".RasterList')")
     cat(errMsg, file = logFilename, append = TRUE)
     stop(errMsg)
   }
 
-  # Load each input raster individually
-  rasterList <- lapply(
-    inputRasterFiles,
-    function(file) terra::rast(file)
+  # Load rasters
+  if (length(inputRasterFiles) > 0) {
+    if (length(inputRasterFiles) == 1) {
+      rasterStack <- terra::rast(inputRasterFiles[[1]])
+    } else {
+      # Load each raster individually
+      rasterList <- lapply(
+        inputRasterFiles,
+        function(rasterFile) terra::rast(rasterFile)
+      )
+
+      # Make sure rasters are aligned (with the first input raster)
+      rasterList <- TerrainWorksUtils::alignRasters(rasterList[[1]], rasterList)
+
+      # Combine individual rasters into a stack
+      rasterStack <- c(rasterList[[1]])
+      for (i in 2:length(rasterList)) {
+        rasterStack <- c(rasterStack, rasterList[[i]])
+      }
+    }
+  }
+
+  ## Load input shapes ---------------------------------------------------------
+
+  # Make sure the input shapes match those expected by the model
+  shapeNamesFile <- sub(".RFmodel", ".ShapeList", modelFile)
+  if (!file.exists(shapeNamesFile)) {
+    errMsg <- paste0("Could not find model shape list: '", shapeNamesFile, "'\n")
+    cat(errMsg, file = logFilename, append = TRUE)
+    stop(errMsg)
+  }
+  expectedShapeNames <- sort(readLines(shapeNamesFile))
+  inputShapeNames <- sort(baseFilename(unlist(inputShapeFiles)))
+  if (any(inputShapeNames != expectedShapeNames)) {
+    errMsg <- paste0("Input shape names do not match those expected by the model (listed in: '", modelName, ".ShapeList')")
+    cat(errMsg, file = logFilename, append = TRUE)
+    stop(errMsg)
+  }
+
+  if (length(inputShapeFiles) > 0) {
+    # Load each shape individually
+    shapeList <- lapply(
+      inputShapeFiles,
+      function(shapeFile) {
+        if (!file.exists(shapeFile)) {
+          errMsg <- paste0("Could not find shape file: '", shapeFile, "'\n")
+          cat(errMsg, file = logFilename, append = TRUE)
+          stop(errMsg)
+        }
+        terra::vect(shapeFile)
+      }
+    )
+  }
+
+  # Build test dataset ---------------------------------------------------------
+
+  # Load the test points
+  testPoints <- terra::vect(testPointsFile)
+
+  # Define the test dataset, which will store both the predictor variables
+  # and the response variable (class)
+  testDf <- data.frame(
+    class = terra::values(testPoints)[[classFieldName]]
   )
 
-  # Align all the input rasters (using the first as a reference)
-  rasterList <- TerrainWorksUtils::alignRasters(rasterList[[1]], rasterList)
-
-  # Combine input rasters into a stack
-  rasterStack <- c(rasterList[[1]])
-  for (i in 2:length(rasterList)) {
-    rasterStack <- c(rasterStack, rasterList[[i]])
+  # Extract raster value(s) at each point and add them to the dataset
+  if (length(inputRasterFiles) == 1) {
+    rasterVar <- terra::extract(rasterStack, testPoints, method = "simple")[,-1]
+    testDf[[names(rasterStack)[1]]] <- rasterVar
+  } else if (length(inputRasterFiles) > 1) {
+    rasterVarsDf <- terra::extract(rasterStack, testPoints, method = "simple")[,-1]
+    testDf <- cbind(testDf, rasterVarsDf)
   }
 
-  # Predict test data --------------------------------------------------------
+  # Extract shape value(s) at each point and add them to the dataset
+  if (length(inputShapeFiles) > 0) {
+    for (shape in shapeList) {
+      # Project the points into the same CRS as the shape
+      projectedPoints <- terra::project(testPoints, shape)
 
-  if (!is.null(testDataFile) && !is.na(testDataFile)) {
-    # Load the points training dataset
-    allPoints <- terra::vect(testDataFile)
+      # Extract shape value(s) at each point
+      shapeVarsDf <- terra::extract(shape, projectedPoints)[,-1]
 
-    # Keep only the column with the input field that holds the wetland Class
-    classPoints <- allPoints[, fieldName]
+      # Add value(s) to the dataset
+      for (field in names(shapeVarsDf)) {
+        # Convert string fields to factors (using levels from source)
+        if (is.character(shapeVarsDf[[field]])) {
+          shapeVarsDf[[field]] <- factor(shapeVarsDf[[field]])
+        }
 
-    # Rename the column heading to Class
-    names(classPoints)[1] <- "class"
-
-    # Sample variable readings at point locations
-    pointValues <- terra::extract(rasterStack, classPoints, method = "simple")
-
-    # Include point classification values (as factors, not strings)
-    pointValues["class"] <- terra::values(classPoints)
-
-    # Remove point "ID" column
-    pointValues <- pointValues[,-1]
-
-    # Remove points with NA values
-    pointValues <- na.omit(pointValues)
-
-    # Make sure there are at least some test dataset points classified with
-    # the given wetland/non-wetland labels
-    correctlyLabeledRows <- pointValues$class == isWetLabel | pointValues$class == notWetLabel
-    if (sum(correctlyLabeledRows) == 0) {
-      errMsg <- paste0("Error: Found no points in the test dataset with the
-                       specified wetland/non-wetland classes: '", isWetLabel,
-                       "'/'", notWetLabel, "'\n")
-      cat(errMsg, file = logFilename, append = TRUE)
-      stop(errMsg)
+        testDf[[field]] <- shapeVarsDf[[field]]
+      }
     }
-    pointValues <- pointValues[correctlyLabeledRows,]
-
-    # Convert class values to factors since Random Forest can't use strings as
-    # predictor variables
-    pointValues$class <- factor(pointValues$class)
-
-    # Run model on these data
-    testDataPredictions <- predict(
-      rfModel,
-      type = "response",
-      newdata = pointValues[,-which(names(pointValues) == "class")]
-    )
-
-    # Log confusion matrix for predicted test data classifications
-    capture.output(table(testDataPredictions, pointValues$class), file = logFilename, append = TRUE)
   }
 
-  # Calculate ROC statistics -------------------------------------------------
+  # Make sure there are at least some points classified with the given
+  # wetland/non-wetland class names
+  correctlyLabeledPointIndices <- testDf$class == wetlandClass | testDf$class == nonwetlandClass
+  if (sum(correctlyLabeledPointIndices) == 0) {
+    errMsg <- paste0("No points in the dataset with the given
+                     wetland/non-wetland classes: '", wetlandClass, "'/'",
+                     nonwetlandClass, "'.")
+    cat(errMsg, file = logFilename, append = TRUE)
+    stop(errMsg)
+  }
+
+  # Convert class field to factor
+  testDf$class <- factor(testDf$class)
+
+  # Remove points that aren't labeled wetland/non-wetland
+  testDf <- testDf[correctlyLabeledPointIndices,]
+
+  # Remove points with NA values
+  testDf <- na.omit(testDf)
+
+  cat("Ground-truth classifications:\n", file = logFilename, append = TRUE)
+  capture.output(summary(testDf$class), file = logFilename, append = TRUE)
+
+  # Predict classes with model -------------------------------------------------
+
+  # Run model on test dataset
+  testDataPredictions <- predict(
+    rfModel,
+    type = "response",
+    newdata = testDf
+  )
+
+  # Log confusion matrix for test data class predictions
+  capture.output(table(testDataPredictions, testDf$class), file = logFilename, append = TRUE)
+
+  # Calculate ROC statistics ---------------------------------------------------
 
   if (calcStats) {
 
@@ -172,17 +239,17 @@ tool_exec <- function(in_params, out_params) {
     wetProb <- predict(
       rfModel,
       type = "prob",
-      newdata = pointValues[,-which(names(pointValues) == "class")]
-    )[,isWetLabel]
-    
+      newdata = testDf
+    )[,wetlandClass]
+
     # Calculate ROC stats
     rocStats <- TerrainWorksUtils::calcRocStats(
-      classes = pointValues$class,
+      classes = testDf$class,
       probs = wetProb,
-      isWetLabel,
-      notWetLabel
+      wetlandClass,
+      nonwetlandClass
     )
-    
+
     # Log ROC statistics
     cat(paste0("AUROC: ", rocStats$auc@y.values, "\n"), file = logFilename, append = TRUE)
     capture.output(c(PRBE = rocStats$prbe, cutoff = rocStats$maxPrecisionCutoff), file = logFilename, append = TRUE)
@@ -208,7 +275,7 @@ tool_exec <- function(in_params, out_params) {
     dev.off()
   }
 
-  # Generate wetland probability raster --------------------------------------
+  # Generate probability raster ------------------------------------------------
 
   if (!is.null(probRasterName) && !is.na(probRasterName)) {
     # Predict probability rasters for wetland and non-wetland
@@ -220,7 +287,7 @@ tool_exec <- function(in_params, out_params) {
     )
 
     # Save the wetland probability raster
-    wetProbRaster <- probRaster[[isWetLabel]]
+    wetProbRaster <- probRaster[[wetlandClass]]
     terra::writeRaster(
       wetProbRaster,
       filename = paste0(probRasterName, ".tif"),
@@ -230,7 +297,7 @@ tool_exec <- function(in_params, out_params) {
     cat(paste0("Created probability raster: ", paste0(probRasterName, ".tif"), "\n"), file = logFilename, append = TRUE)
   }
 
-  # Return -------------------------------------------------------------------
+  # Return ---------------------------------------------------------------------
 
   return(out_params)
 
@@ -239,60 +306,32 @@ tool_exec <- function(in_params, out_params) {
 # Tests
 if (FALSE) {
 
-  # Test Puyallup model in Puyallup region (BIGLAPTOP)
-  tool_exec(
-    in_params = list(
-      workingDir = "C:/Work/netmapdata/Puyallup",
-      modelFile = "puy.RFmodel",
-      inputRasterFiles = list("grad_300.flt", "dev_300.flt", "plan_300.flt", "prof_300.flt"),
-      testDataFile <- "wetlandPnts.shp",
-      fieldName <- "NEWCLASS",
-      isWetLabel <- "WET",
-      notWetLabel <- "UPL",
-      calcStats <- TRUE
-    ),
-    out_params = list(probRasterName = "puy_prob")
-  )
-
   # Test Puyallup model in Mashel region (BIGLAPTOP)
   tool_exec(
     in_params = list(
       workingDir = "C:/Work/netmapdata/Mashel",
-      modelFile = "puy_dev300_grad15_plan15_prof15.RFmodel",
-      inputRasterFiles = list("dev_300.tif", "grad_15.tif", "plan_15.tif", "prof_15.tif"),
-      testDataFile <- "wetlandPoints.shp",
-      fieldName <- "NEWCLASS",
-      isWetLabel <- "WET",
-      notWetLabel <- "UPL",
-      calcStats <- TRUE
+      modelFile = "puy_grad15_dev300_geo.RFmodel",
+      inputRasterFiles = list("grad_15.tif", "dev_300.tif"),
+      inputShapeFiles = list("geo.shp"),
+      testPointsFile = "wetlandPoints.shp",
+      classFieldName = "NEWCLASS",
+      wetlandClass = "WET",
+      nonwetlandClass = "UPL",
+      calcStats = TRUE
     ),
     out_params = list(probRasterName = "mas_prob")
   )
 
-  tool_exec(
-    in_params = list(
-      workingDir = "E:/NetmapData/Puyallup",
-      modelFile = "puy.RFmodel",
-      inputRasterFiles = list("dev_300.flt", "grad_300.flt", "plan_300.flt", "prof_300.flt"),
-      testDataFile <- "wetlandPnts.shp",
-      fieldName <- "NEWCLASS",
-      isWetLabel <- "WET",
-      notWetLabel <- "UPL",
-      calcStats <- TRUE
-    ),
-    out_params = list(probRasterName = "puy_prob")
-  )
-
-  # Test Puyallup model in Mashel region (WORK2 desktop)
+  # Test Puyallup model in Mashel region (WORK2)
   tool_exec(
     in_params = list(
       workingDir = "E:/NetmapData/Mashel",
       modelFile = "puy_dev300_grad15_plan15_prof15.RFmodel",
       inputRasterFiles = list("dev_300.tif", "grad_15.tif", "plan_15.tif", "prof_15.tif"),
-      testDataFile <- "mashelPoints.shp",
-      fieldName <- "NEWCLASS",
-      isWetLabel <- "WET",
-      notWetLabel <- "UPL",
+      testPointsFile <- "mashelPoints.shp",
+      classFieldName <- "NEWCLASS",
+      wetlandClass <- "WET",
+      nonwetlandClass <- "UPL",
       calcStats <- TRUE
     ),
     out_params = list(probRasterName = NULL)
