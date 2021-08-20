@@ -12,6 +12,13 @@ tool_exec <- function(in_params, out_params) {
     install.packages("ROCR", quiet = TRUE)
   if (!requireNamespace("terra", quietly = TRUE))
     install.packages("terra", quiet = TRUE)
+  
+  # Define helper functions ----------------------------------------------------
+  
+  logAndStop <- function(errMsg) {
+    cat(errMsg, file = logFilename, append = TRUE)
+    stop(errMsg)
+  }
 
   # Set input/output parameters ------------------------------------------------
 
@@ -31,9 +38,8 @@ tool_exec <- function(in_params, out_params) {
 
   # Setup ----------------------------------------------------------------------
 
-  if (!file.exists(workingDir)) {
+  if (!file.exists(workingDir))
     stop("Working directory: '", workingDir, "' does not exist")
-  }
 
   setwd(workingDir)
 
@@ -45,25 +51,16 @@ tool_exec <- function(in_params, out_params) {
 
   # Validate parameters --------------------------------------------------------
 
-  if (length(inputRasterFiles) == 0 && length(inputShapeFiles) == 0) {
-    errMsg <- "Must provide at least one input raster or shape.\n"
-    cat(errMsg, file = logFilename, append = TRUE)
-    stop(errMsg)
-  }
+  if (length(inputRasterFiles) == 0 && length(inputShapeFiles) == 0)
+    logAndStop("Must provide at least one input raster or shape.\n")
 
   lapply(inputRasterFiles, function(inputRasterFile) {
-    if (!file.exists(inputRasterFile)) {
-      errMsg <- paste0("Input raster: '", inputRasterFile, "' does not exist.\n")
-      cat(errMsg, file = logFilename, append = TRUE)
-      stop(errMsg)
-    }
+    if (!file.exists(inputRasterFile))
+      logAndStop(paste0("Input raster: '", inputRasterFile, "' does not exist.\n"))
   })
 
-  if (!file.exists(trainingPointsFile)) {
-    errMsg <- paste0("Training dataset: '", trainingPointsFile, "' does not exist.\n")
-    cat(errMsg, file = logFilename, append = TRUE)
-    stop(errMsg)
-  }
+  if (!file.exists(trainingPointsFile))
+    logAndStop(paste0("Training dataset: '", trainingPointsFile, "' does not exist.\n"))
 
   # Load input data ------------------------------------------------------------
 
@@ -171,13 +168,10 @@ tool_exec <- function(in_params, out_params) {
   # Make sure there are at least some training dataset points classified with
   # the given wetland/non-wetland class names
   correctlyLabeledPointIndices <- trainingDf$class == wetlandClass | trainingDf$class == nonwetlandClass
-  if (sum(correctlyLabeledPointIndices) == 0) {
-    errMsg <- paste0("No points in the training dataset with the specified
+  if (sum(correctlyLabeledPointIndices) == 0)
+    logAndStop(paste0("No points in the training dataset with the specified
                      wetland/non-wetland classes: '", wetlandClass, "'/'",
-                     nonwetlandClass, "'.")
-    cat(errMsg, file = logFilename, append = TRUE)
-    stop(errMsg)
-  }
+                     nonwetlandClass, "'."))
 
   # Convert class field to factor
   trainingDf$class <- factor(trainingDf$class)
