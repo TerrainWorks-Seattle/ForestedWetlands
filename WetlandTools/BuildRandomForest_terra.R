@@ -52,15 +52,20 @@ tool_exec <- function(in_params, out_params) {
   # Validate parameters --------------------------------------------------------
 
   if (length(inputRasterFiles) == 0 && length(inputShapeFiles) == 0)
-    logAndStop("Must provide at least one input raster or shape.\n")
+    logAndStop("Must provide at least one input raster or shape\n")
 
   lapply(inputRasterFiles, function(inputRasterFile) {
     if (!file.exists(inputRasterFile))
-      logAndStop(paste0("Input raster: '", inputRasterFile, "' does not exist.\n"))
+      logAndStop(paste0("Could not find input raster: '", inputRasterFile, "'\n"))
+  })
+  
+  lapply(inputShapeFiles, function(inputShapeFile) {
+    if (!file.exists(inputShapeFile))
+      logAndStop(paste0("Could not find input shape: '", inputShapeFile, "'\n"))
   })
 
   if (!file.exists(trainingPointsFile))
-    logAndStop(paste0("Training dataset: '", trainingPointsFile, "' does not exist.\n"))
+    logAndStop(paste0("Could not find training points dataset: '", trainingPointsFile, "'\n"))
 
   # Load input data ------------------------------------------------------------
 
@@ -80,7 +85,7 @@ tool_exec <- function(in_params, out_params) {
         function(rasterFile) terra::rast(rasterFile)
       )
 
-      # Make sure rasters are aligned (with the first input raster)
+      # Align all rasters with the first given
       rasterList <- TerrainWorksUtils::alignRasters(rasterList[[1]], rasterList)
 
       # Combine individual rasters into a stack
@@ -119,75 +124,90 @@ tool_exec <- function(in_params, out_params) {
 
   # Build training dataset -----------------------------------------------------
 
+  # Prepare to record the levels of any factor training variables
+  modelFactorLevels <- list(
+    rasters = list(),
+    shapes = list(),
+    class = NULL
+  )
+  
   # Load the training points
   trainingPoints <- terra::vect(trainingPointsFile)
 
-  # Define the training dataset, which will store both the predictor variables
-  # and the response variable (class)
+  # Define the training dataset. This will store all the predictor variables as 
+  # well as the response variable (wetland/non-wetland class)
   trainingDf <- data.frame(
     class = terra::values(trainingPoints)[[classFieldName]]
   )
-
-  # If any rasters were input, extract their value(s) at each training point and
-  # add those to the training dataset
+  
   if (length(inputRasterFiles) > 0) {
+    # Extract input raster value(s) at each point
     rasterValues <- terra::extract(rasterStack, trainingPoints, method = "simple")[,-1]
+    
+    # Add value(s) to training dataset
     if (length(inputRasterFiles) == 1) {
+      # TODO: Handle single factor variable
       trainingDf[[names(rasterStack)[1]]] <- rasterValues
     } else {
+      # TODO: Handle multiple factor variables
       trainingDf <- cbind(trainingDf, rasterValues)
     }
   }
   
-  # If any shapes were input, extract their value(s) at each training point and 
-  # add those to the training dataset
   if (length(inputShapeFiles) > 0) {
     for (shape in shapeList) {
-      # Project the training points into the same CRS as the shape
+      # Project the points into the same CRS as the shape
       projectedPoints <- terra::project(trainingPoints, shape)
 
-      # Extract shape value(s) at each training point
+      # Extract shape value(s) at each point
       shapeValues <- terra::extract(shape, projectedPoints)[,-1]
 
       if (ncol(shape) == 1) {
-        if (is.character(shapeValues))
+        # Add single variable to training dataset (converting to factor if char)
+        if (is.character(shapeValues)) {
           shapeValues <- factor(shapeValues)
+          modelFactorLevels$shapes[[names(shape)]] = levels(shapeValues)
+        }
         trainingDf[[names(shape)]] <- shapeValues 
       } else {
-        # Add value(s) to training data
-        for (field in names(shapeValues)) {
-          # Convert string fields to factors
-          if (is.character(shapeValues[[field]]))
-            shapeValues[[field]] <- factor(shapeValues[[field]])
-          trainingDf[[field]] <- shapeValues[[field]]
+        # Add multiple variables to training dataset (converting to factor if char)
+        for (varName in names(shapeValues)) {
+          if (is.character(shapeValues[[varName]])) {
+            shapeValues[[varName]] <- factor(shapeValues[[varName]])
+            modelFactorLevels$shapes[[varName]] = levels(shapeValues[[varName]])
+          }
+          trainingDf[[varName]] <- shapeValues[[varName]]
         }   
       }
     }
   }
+  
+  # Remove training entries with NA values
+  trainingDf <- na.omit(trainingDf)
 
-  # Make sure there are at least some training dataset points classified with
-  # the given wetland/non-wetland class names
+  # Check that at least some training entries are classified with the given 
+  # wetland/non-wetland class names
   correctlyLabeledPointIndices <- trainingDf$class == wetlandClass | trainingDf$class == nonwetlandClass
   if (sum(correctlyLabeledPointIndices) == 0)
-    logAndStop(paste0("No points in the training dataset with the specified
+    logAndStop(paste0("No entries in the training dataset have the given
                      wetland/non-wetland classes: '", wetlandClass, "'/'",
                      nonwetlandClass, "'."))
 
-  # Convert class field to factor
-  trainingDf$class <- factor(trainingDf$class)
-
-  # Remove points that aren't labeled wetland/non-wetland
+  # Remove entries that aren't classified with the given wetland/non-wetland classe names
   trainingDf <- trainingDf[correctlyLabeledPointIndices,]
-
-  # Remove points with NA values
-  trainingDf <- na.omit(trainingDf)
+  
+  # Convert class variable to factor
+  trainingDf$class <- factor(trainingDf$class)
 
   cat("Ground-truth classifications:\n", file = logFilename, append = TRUE)
   capture.output(summary(trainingDf$class), file = logFilename, append = TRUE)
 
+  # Save model factor levels
+  save(modelFactorLevels, file = paste0(modelName, ".Levels"))
+  
   # Build Random Forest model ------------------------------------------------
 
-  # Build a model that predicts "class" from all input variables
+  # Build a model that predicts wetland/non-wetland class from all input variables
   rfModel <- randomForest::randomForest(
     class ~ .,
     data = trainingDf,
@@ -210,7 +230,7 @@ tool_exec <- function(in_params, out_params) {
   errorRateNames <- colnames(rfModel$err.rate)
   dev.new()
   plot(rfModel, main = paste0(modelName, "_rfclass"))
-  legend("topright", errorRateNames, col= seq_along(errorRateNames), cex=0.8, fill = seq_along(errorRateNames))
+  legend("topright", errorRateNames, col = seq_along(errorRateNames), cex = 0.8, fill = seq_along(errorRateNames))
   dev.copy(win.metafile, paste0(modelName, "_rfclass.wmf"))
   dev.off()
 
@@ -226,17 +246,19 @@ tool_exec <- function(in_params, out_params) {
   # Calculate ROC statistics -------------------------------------------------
 
   if (calcStats) {
+    
+    testDf <- trainingDf
 
-    # Calculate wetland probability for each test point
+    # Calculate wetland probability for each test dataset entry
     wetProb <- predict(
       rfModel,
       type = "prob",
-      newdata = trainingDf
+      newdata = testDf
     )[,wetlandClass]
 
     # Calculate ROC stats
     rocStats <- TerrainWorksUtils::calcRocStats(
-      classes = trainingDf$class,
+      classes = testDf$class,
       probs = wetProb,
       wetlandClass,
       nonwetlandClass
@@ -325,6 +347,22 @@ if (FALSE) {
       wetlandClass = "WET",
       nonwetlandClass = "UPL",
       modelName = "puy_grad15_dev300_geo",
+      calcStats = TRUE
+    ),
+    out_params = list(probRasterName = NULL)
+  )
+  
+  # Test in Puyallup region (WORK2)
+  tool_exec(
+    in_params = list(
+      workingDir = "E:/NetmapData/HohLidar",
+      inputRasterFiles = list("grad_15.flt"),
+      inputShapeFiles = list("geo.shp"),
+      trainingDatasetFile = "Hoh_samplePoints2_unk_rmv.shp",
+      classFieldName = "Class",
+      wetlandClass = "WET",
+      nonwetlandClass = "UPL",
+      modelName = "hoh_grad15_geo",
       calcStats = TRUE
     ),
     out_params = list(probRasterName = NULL)
