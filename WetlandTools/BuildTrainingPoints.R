@@ -8,6 +8,14 @@ tool_exec <- function(in_params, out_params) {
   wetlandSampleRate <- in_params[[4]]    # Samples per km^2 of wetland
   nonwetlandSampleRate <- in_params[[5]] # Samples per km^2 of non-wetland
   regionMargin <- in_params[[6]]         # Width of region interior margin
+  typeForestedAndShrubWetland <- in_params[[7]] 
+  typeEmergentWetland <- in_params[[8]]
+  typePond <- in_params[[9]] 
+  typeEstuarineAndMarineWetland <- in_params[[10]] 
+  typeRiverine <- in_params[[11]] 
+  typeLake <- in_params[[12]] 
+  typeEstuarineAndMarineDeepwater<- in_params[[13]] 
+  typeOther <- in_params[[14]] 
   trainingPointsFile <- out_params[[1]]  # Name of output training points file
   
   # Helper functions -----------------------------------------------------------
@@ -57,7 +65,7 @@ tool_exec <- function(in_params, out_params) {
   # Load region polygon
   regionPoly <- terra::vect(regionPolyFile)
   
-  terra::plot(regionPoly)
+  #terra::plot(regionPoly)
   
   # Shrink region by applying an interior margin. This ensures that training 
   # points will not be sampled near the region's edges
@@ -68,6 +76,29 @@ tool_exec <- function(in_params, out_params) {
   
   # Load wetland polygons
   wetlandPolys <- terra::vect(wetlandPolysFile)
+  
+  # Filter out undesired wetland types
+  wetlandTypes <- c()
+  if (typeForestedAndShrubWetland)
+    wetlandTypes <- c(wetlandTypes, "Freshwater Forested/Shrub Wetland")
+  if (typeEmergentWetland)
+    wetlandTypes <- c(wetlandTypes, "Freshwater Emergent Wetland")
+  if (typePond)
+    wetlandTypes <- c(wetlandTypes, "Freshwater Pond")
+  if (typeEstuarineAndMarineWetland)
+    wetlandTypes <- c(wetlandTypes, "Estuarine and Marine Wetland")
+  if (typeRiverine) 
+    wetlandTypes <- c(wetlandTypes, "Riverine")
+  if (typeLake)
+    wetlandTypes <- c(wetlandTypes, "Lake")
+  if (typeEstuarineAndMarineDeepwater)
+    wetlandTypes <- c(wetlandTypes, "Estuarine and Marine Deepwater")
+  if (typeOther)
+    wetlandTypes <- c(wetlandTypes, "Other")
+  
+  wetlandPolys <- wetlandPolys[wetlandPolys$WETLAND_TY %in% wetlandTypes]
+  if (length(wetlandPolys) == 0)
+    stop("No wetlands to sample")
   
   # Crop the wetland polygons to the region
   wetlandPolys <- terra::project(wetlandPolys, regionPoly)
@@ -91,9 +122,9 @@ tool_exec <- function(in_params, out_params) {
   trainingAtts <- data.frame(class = factor(c(rep("WET", nrow(wetlandCoords)), rep("UPL", nrow(nonwetlandCoords)))))
   trainingPoints <- terra::vect(trainingCoords, atts = trainingAtts, crs = terra::crs(regionPoly))
   
-  terra::polys(regionPoly, lty = 2)
-  terra::polys(wetlandPolys, border = "cyan")
-  terra::points(trainingPoints, col = c(rep("blue", nrow(wetlandCoords)), rep("red", nrow(nonwetlandCoords))))
+  #terra::polys(regionPoly, lty = 2)
+  #terra::polys(wetlandPolys, border = "cyan")
+  #terra::points(trainingPoints, col = c(rep("blue", nrow(wetlandCoords)), rep("red", nrow(nonwetlandCoords))))
   
   # Create training points file ------------------------------------------------
   
@@ -142,9 +173,17 @@ if (FALSE) {
       workingDir = "E:/NetmapData/Mashel",
       regionPolyFile = "StudyAreaExtent_Mashel.shp",
       wetlandPolysFile = "mas_wetlandPolys.shp",
-      wetlandSampleRate = 10,
+      wetlandSampleRate = 5,
       nonwetlandSampleRate = 1,
-      regionMargin = 0
+      regionMargin = 0,
+      typeForestedAndShrubWetland = FALSE,
+      typeEmergentWetland = FALSE,
+      typePond = TRUE,
+      typeEstuarineAndMarineWetland = FALSE,
+      typeRiverine = FALSE,
+      typeLake = FALSE,
+      typeEstuarineAndMarineDeepwater = FALSE,
+      typeOther = FALSE
     ),
     out_params = list(
       trainingPointsFile = "mas_trainingPoints.shp"
