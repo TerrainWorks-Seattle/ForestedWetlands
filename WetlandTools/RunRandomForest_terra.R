@@ -27,10 +27,6 @@ tool_exec <- function(in_params, out_params) {
 
   # Set input/output parameters ------------------------------------------------
 
-  # TODO: Try indexing in_params using the parameter names specified in the ArcGIS tool.
-  # Ex: in_params[["Working_Directory"]]
-  # Indexing by name returns NULL when missing instead of causing an error when indexing by number.
-
   workingDir <- in_params[[1]]       # Working directory where model files can be found and output files will be saved in
   modelFile <- in_params[[2]]        # Filename of the model
   inputRasterFiles <- in_params[[3]] # List of input raster filenames
@@ -56,47 +52,40 @@ tool_exec <- function(in_params, out_params) {
 
   # Validate parameters --------------------------------------------------------
 
+  # Make sure model file exists
   if (!file.exists(modelFile))
     logAndStop(paste0("Could not find model file: '", modelFile, "'\n"))
-
+  
+  # Make sure at least one input raster or shape was given
   if (length(inputRasterFiles) == 0 && length(inputShapeFiles) == 0)
     logAndStop("Must provide at least one input raster or shape\n")
-
+  
+  # Make sure all input raster files exist
   lapply(inputRasterFiles, function(inputRasterFile) {
     if (!file.exists(inputRasterFile))
       logAndStop(paste0("Could not find input raster: '", inputRasterFile, "'\n"))
   })
   
+  # Make sure all input shape files exist
   lapply(inputShapeFiles, function(inputShapeFile) {
     if (!file.exists(inputShapeFile))
       logAndStop(paste0("Could not find input shape: '", inputShapeFile, "'\n"))
   })
 
+  # Make sure test points file exists
   if (!file.exists(testPointsFile))
     logAndStop(paste0("Could not find test points dataset: '", testPointsFile, "'\n"))
 
   # Load model -----------------------------------------------------------------
   
+  # Load the "modelInfo" object
   load(modelFile)
+  rfModel <- modelInfo$model
+  
   cat(paste0("Loaded model: ", modelFile, "\n"), file = logFilename, append = TRUE)
 
   # Load input data ------------------------------------------------------------
-
-  ## Load input rasters --------------------------------------------------------
-
-  # Make sure the input rasters match those expected by the model
-  # TODO: Match variable names instead of filenames
-  rasterNamesFile <- sub(".RFmodel", ".RasterList", modelFile)
-  if (!file.exists(rasterNamesFile))
-    logAndStop(paste0("Could not find model raster list: '", rasterNamesFile, "'\n"))
-  expectedRasterNames <- sort(readLines(rasterNamesFile))
-  inputRasterNames <- sort(baseFilename(unlist(inputRasterFiles)))
-  if (any(inputRasterNames != expectedRasterNames))
-    logAndStop(paste0("Input raster names (",
-                      paste0(inputRasterNames, collapse = ", "), 
-                      ") do not match those expected by the model (", 
-                      paste0(expectedRasterNames, collapse = ", "), ")\n"))
-
+  
   # Load rasters
   if (length(inputRasterFiles) > 0) {
     if (length(inputRasterFiles) == 1) {
@@ -118,23 +107,9 @@ tool_exec <- function(in_params, out_params) {
       }
     }
   }
-
-  ## Load input shapes ---------------------------------------------------------
-
-  # Make sure the input shapes match those expected by the model
-  shapeNamesFile <- sub(".RFmodel", ".ShapeList", modelFile)
-  if (!file.exists(shapeNamesFile))
-    logAndStop(paste0("Could not find model shape list: '", shapeNamesFile, "'\n"))
-  expectedShapeNames <- sort(readLines(shapeNamesFile))
-  inputShapeNames <- sort(baseFilename(unlist(inputShapeFiles)))
-  if (length(inputShapeNames) != length(expectedShapeNames) || any(inputShapeNames != expectedShapeNames))
-    logAndStop(paste0("Input shape names (",
-                      paste0(inputShapeNames, collapse = ", "), 
-                      ") do not match those expected by the model (", 
-                      paste0(expectedShapeNames, collapse = ", "), ")\n"))
-
+  
+  # Load shapes
   if (length(inputShapeFiles) > 0) {
-    # Load each shape individually
     shapeList <- lapply(
       inputShapeFiles,
       function(shapeFile) terra::vect(shapeFile)
@@ -142,25 +117,23 @@ tool_exec <- function(in_params, out_params) {
   }
 
   # Build test dataset ---------------------------------------------------------
-
-  # Load the expected factor levels for the model
-  modelFactorLevelsFile <- sub(".RFmodel", ".Levels", modelFile)
-  load(modelFactorLevelsFile)
   
   # Load the test points
   testPoints <- terra::vect(testPointsFile)
 
-  # Define the test dataset, which will store both the predictor variables
-  # and the response variable (class)
+  # Define the test dataset. This will store all the predictor variables as 
+  # well as the response variable (wetland/non-wetland class)
   testDf <- data.frame(
     class = terra::values(testPoints)[[classFieldName]]
   )
 
-  # Extract raster value(s) at each point and add them to the dataset
+  # Extract raster value(s) at each point and add them to the test dataset
   if (length(inputRasterFiles) == 1) {
+    # TODO: Handle single factor variable
     rasterVar <- terra::extract(rasterStack, testPoints, method = "simple")[,-1]
     testDf[[names(rasterStack)[1]]] <- rasterVar
   } else if (length(inputRasterFiles) > 1) {
+    # TODO: Handle multiple factor variables
     rasterVarsDf <- terra::extract(rasterStack, testPoints, method = "simple")[,-1]
     testDf <- cbind(testDf, rasterVarsDf)
   }
@@ -177,47 +150,51 @@ tool_exec <- function(in_params, out_params) {
       # Add values to the test dataset (converting char variables to factor)
       if (ncol(shape) == 1) {
         # Add single variable
-        if (is.character(shapeValues)) {
-          shapeValues <- factor(shapeValues, levels = modelFactorLevels$shapes[[names(shape)]])
-        }
+        if (is.character(shapeValues))
+          shapeValues <- factor(shapeValues, levels = modelInfo$inputVars[[names(shape)]])
         testDf[[names(shape)]] <- shapeValues 
       } else {
         # Add multiple variables
         for (varName in names(shapeValues)) {
-          if (is.character(shapeValues[[varName]])) {
-            shapeValues[[varName]] <- factor(shapeValues[[varName]], levels = modelFactorLevels$shapes[[varName]])
-          }
+          if (is.character(shapeValues[[varName]]))
+            shapeValues[[varName]] <- factor(shapeValues[[varName]], levels = modelInfo$inputVars[[varName]])
           testDf[[varName]] <- shapeValues[[varName]]
         }   
       }
     }
   }
-
-  # Make sure there are at least some points classified with the given
-  # wetland/non-wetland class names
-  correctlyLabeledPointIndices <- testDf$class == wetlandClass | testDf$class == nonwetlandClass
-  if (sum(correctlyLabeledPointIndices) == 0) {
-    errMsg <- paste0("No points in the dataset with the given
-                     wetland/non-wetland classes: '", wetlandClass, "'/'",
-                     nonwetlandClass, "'.")
-    cat(errMsg, file = logFilename, append = TRUE)
-    stop(errMsg)
-  }
   
   # Remove points that aren't labeled wetland/non-wetland
+  correctlyLabeledPointIndices <- testDf$class == wetlandClass | testDf$class == nonwetlandClass
   testDf <- testDf[correctlyLabeledPointIndices,]
+  
+  # Make sure there are at least some points classified with the given
+  # wetland/non-wetland class names
+  if (nrow(testDf) == 0)
+    logAndStop(paste0("No points in the dataset with the given
+                      wetland/non-wetland classes: '", wetlandClass, "'/'",
+                      nonwetlandClass, "'."))
 
   # Remove points with NA values
   testDf <- na.omit(testDf)
   
   # Convert class field to factor
   testDf$class <- factor(testDf$class)
-
+  
   cat("Ground-truth classifications:\n", file = logFilename, append = TRUE)
   capture.output(summary(testDf$class), file = logFilename, append = TRUE)
 
   # Predict classes with model -------------------------------------------------
 
+  # Make sure the model has been given all its expected input variables
+  expectedInputVars <- names(modelInfo$inputVars)
+  givenInputVars <- colnames(testDf)[-1]
+  if (!all(expectedInputVars %in% givenInputVars))
+    logAndStop(paste0("Input variables (",
+                      paste0(givenInputVars, collapse = ", "), 
+                      ") do not match those expected by the model (", 
+                      paste0(expectedInputVars, collapse = ", "), ")\n"))
+  
   # Run model on test dataset
   testDataPredictions <- predict(
     rfModel,
@@ -255,7 +232,7 @@ tool_exec <- function(in_params, out_params) {
     # Display ROC plot
     dev.new()
     ROCR::plot(rocStats$roc, colorize = TRUE, main = paste0(modelName, "_roc"))
-    abline(a = 0, b = 1)
+    abline(a = 0, b = 1, lty = 2)
     dev.copy(win.metafile, paste0(modelName, "_roc.wmf"))
     dev.off()
 
@@ -323,8 +300,8 @@ if (FALSE) {
   tool_exec(
     in_params = list(
       workingDir = "E:/NetmapData/Mashel",
-      modelFile = "hoh_grad15_geo.RFmodel",
-      inputRasterFiles = list("grad_15.tif"),
+      modelFile = "puy_grad15_dev300_geo.RFmodel",
+      inputRasterFiles = list("grad_15.tif", "dev_300.tif"),
       inputShapePoints = list("geo.shp"),
       testPointsFile = "mashelPoints.shp",
       classFieldName = "NEWCLASS",
