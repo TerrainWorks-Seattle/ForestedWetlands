@@ -20,6 +20,7 @@ tool_exec <- function(in_params, out_params) {
       
       # Determine the number of samples to take from the polygon's area
       polyArea <- terra::expanse(poly, unit = "km")
+      if (polyArea == 0) next
       sampleSize <- ceiling(polyArea * sampleRate)
       
       # Sample the polygon
@@ -60,7 +61,8 @@ tool_exec <- function(in_params, out_params) {
   
   # Shrink region by applying an interior margin. This ensures that training 
   # points will not be sampled near the region's edges
-  regionPoly <- terra::buffer(regionPoly, width = -abs(regionMargin))
+  if (regionMargin != 0)
+    regionPoly <- terra::buffer(regionPoly, width = -abs(regionMargin))
   
   # Sample wetlands ------------------------------------------------------------
   
@@ -119,7 +121,7 @@ if (FALSE) {
     out_params = NULL
   )
   
-  # (DESKTOP2)
+  # Pack Forest (DESKTOP2)
   tool_exec(
     in_params = list(
       workingDir = "C:/Work/Data/pack_forest",
@@ -131,6 +133,21 @@ if (FALSE) {
     ),
     out_params = list(
       trainingPointsFile = "pf_training.shp"
+    )
+  )
+  
+  # Mashel (DESKTOP2)
+  tool_exec(
+    in_params = list(
+      workingDir = "E:/NetmapData/Mashel",
+      regionPolyFile = "StudyAreaExtent_Mashel.shp",
+      wetlandPolysFile = "mas_wetlandPolys.shp",
+      wetlandSampleRate = 10,
+      nonwetlandSampleRate = 1,
+      regionMargin = 0
+    ),
+    out_params = list(
+      trainingPointsFile = "mas_trainingPoints.shp"
     )
   )
   
