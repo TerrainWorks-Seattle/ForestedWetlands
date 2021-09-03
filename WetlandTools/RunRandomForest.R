@@ -19,7 +19,7 @@ tool_exec <- function(in_params, out_params) {
     if (is.null(file)) return(NULL)
     return(gsub(basename(file), pattern="\\..*$", replacement=""))
   }
-  
+
   logAndStop <- function(errMsg) {
     cat(errMsg, file = logFilename, append = TRUE)
     stop(errMsg)
@@ -55,17 +55,17 @@ tool_exec <- function(in_params, out_params) {
   # Make sure model file exists
   if (!file.exists(modelFile))
     logAndStop(paste0("Could not find model file: '", modelFile, "'\n"))
-  
+
   # Make sure at least one input raster or shape was given
   if (length(inputRasterFiles) == 0 && length(inputShapeFiles) == 0)
     logAndStop("Must provide at least one input raster or shape\n")
-  
+
   # Make sure all input raster files exist
   lapply(inputRasterFiles, function(inputRasterFile) {
     if (!file.exists(inputRasterFile))
       logAndStop(paste0("Could not find input raster: '", inputRasterFile, "'\n"))
   })
-  
+
   # Make sure all input shape files exist
   lapply(inputShapeFiles, function(inputShapeFile) {
     if (!file.exists(inputShapeFile))
@@ -77,110 +77,119 @@ tool_exec <- function(in_params, out_params) {
     logAndStop(paste0("Could not find test points dataset: '", testPointsFile, "'\n"))
 
   # Load model -----------------------------------------------------------------
-  
+
   # Load the "modelInfo" object
   load(modelFile)
   rfModel <- modelInfo$model
-  
+
   cat(paste0("Loaded model: ", modelFile, "\n"), file = logFilename, append = TRUE)
 
   # Load input data ------------------------------------------------------------
-  
+
   # Load rasters
-  if (length(inputRasterFiles) > 0) {
-    if (length(inputRasterFiles) == 1) {
-      rasterStack <- terra::rast(inputRasterFiles[[1]])
-    } else {
-      # Load each raster individually
-      rasterList <- lapply(
-        inputRasterFiles,
-        function(rasterFile) terra::rast(rasterFile)
-      )
+  rasterList <- lapply(inputRasterFiles, function(file) terra::rast(file))
 
-      # Align all rasters with the first given
-      rasterList <- TerrainWorksUtils::alignRasters(rasterList[[1]], rasterList)
-
-      # Combine individual rasters into a stack
-      rasterStack <- c(rasterList[[1]])
-      for (i in 2:length(rasterList)) {
-        rasterStack <- c(rasterStack, rasterList[[i]])
-      }
-    }
+  # Align all rasters with the first given raster
+  # TODO: No longer necessary now that rasters aren't stored in a stack?
+  if (length(rasterList) > 0) {
+    rasterList <- TerrainWorksUtils::alignRasters(rasterList[[1]], rasterList)
   }
-  
+
   # Load shapes
-  if (length(inputShapeFiles) > 0) {
-    shapeList <- lapply(
-      inputShapeFiles,
-      function(shapeFile) terra::vect(shapeFile)
-    )
-  }
+  shapeList <- lapply(inputShapeFiles, function(file) terra::vect(file))
 
   # Build test dataset ---------------------------------------------------------
-  
+
   # Load the test points
   testPoints <- terra::vect(testPointsFile)
 
-  # Define the test dataset. This will store all the predictor variables as 
+  # Define the test dataset. This will store all the predictor variables as
   # well as the response variable (wetland/non-wetland class)
   testDf <- data.frame(
     class = terra::values(testPoints)[[classFieldName]]
   )
 
-  # Extract raster value(s) at each point and add them to the test dataset
-  if (length(inputRasterFiles) == 1) {
-    # TODO: Handle single factor variable
-    rasterVar <- terra::extract(rasterStack, testPoints, method = "simple")[,-1]
-    testDf[[names(rasterStack)[1]]] <- rasterVar
-  } else if (length(inputRasterFiles) > 1) {
-    # TODO: Handle multiple factor variables
-    rasterVarsDf <- terra::extract(rasterStack, testPoints, method = "simple")[,-1]
-    testDf <- cbind(testDf, rasterVarsDf)
+  # Add predictor variables from input rasters
+  # TODO: Support multi-band factor rasters?
+  for (raster in rasterList) {
+    # Project the points into the same CRS as the raster
+    projectedPoints <- terra::project(testPoints, raster)
+
+    if (terra::is.factor(raster)) {
+      # NOTE:
+      # terra seems to have problems reading values from some factor
+      # raster files. Extracting points from a factor raster (made using the
+      # 'polygon to raster' tool in ArcGIS) with factor=TRUE returns the Count
+      # field values instead of the specified 'value field'. The Count values
+      # also seem to be misleveled by 1 row when you look at the
+      # terra::cats() table for the raster. Therefore, extracting the desired
+      # char factor has to be done in this roundabout way:
+
+      # Extract numeric factor value at each point
+      rasterValues <- terra::extract(raster, projectedPoints, method = "simple", factor = FALSE)[,-1]
+
+      # Map the numeric factor values to their corresponding char values
+      factorDf <- terra::cats(raster)[[1]]
+      factorNamesCol <- which(sapply(factorDf, class) == "character")
+      factorNames <- factorDf[,factorNamesCol]
+      rasterValues <- factorNames[rasterValues]
+
+      # Add values to training dataset
+      varName <- colnames(factorDf)[factorNamesCol]
+      testDf[[varName]] <- rasterValues
+    } else {
+      # Extract continuous value at each point
+      rasterValues <- terra::extract(raster, projectedPoints, method = "simple")[,-1]
+
+      # Add values to training dataset
+      testDf[[names(raster)]] <- rasterValues
+    }
   }
 
-  # Extract shape value(s) at each point and add them to the test dataset
-  if (length(inputShapeFiles) > 0) {
-    for (shape in shapeList) {
-      # Project the points into the same CRS as the shape
-      projectedPoints <- terra::project(testPoints, shape)
+  # Add predictor values from input shapes
+  for (shape in shapeList) {
+    # Project the points into the same CRS as the shape
+    projectedPoints <- terra::project(testPoints, shape)
 
-      # Extract shape value(s) at each point
-      shapeValues <- terra::extract(shape, projectedPoints)[,-1]
-      
-      # Add values to the test dataset (converting char variables to factor)
-      if (ncol(shape) == 1) {
-        # Add single variable
-        if (is.character(shapeValues))
-          shapeValues <- factor(shapeValues, levels = modelInfo$inputVars[[names(shape)]])
-        testDf[[names(shape)]] <- shapeValues 
-      } else {
-        # Add multiple variables
-        for (varName in names(shapeValues)) {
-          if (is.character(shapeValues[[varName]]))
-            shapeValues[[varName]] <- factor(shapeValues[[varName]], levels = modelInfo$inputVars[[varName]])
-          testDf[[varName]] <- shapeValues[[varName]]
-        }   
+    # Extract shape value(s) at each point
+    shapeValues <- terra::extract(shape, projectedPoints)[,-1]
+
+    # Add values to the test dataset (converting char variables to factor)
+    if (ncol(shape) == 1) {
+      # Add single variable
+      testDf[[names(shape)]] <- shapeValues
+    } else {
+      # Add multiple variables
+      for (varName in names(shapeValues)) {
+        testDf[[varName]] <- shapeValues[[varName]]
       }
     }
   }
-  
-  # Remove points that aren't labeled wetland/non-wetland
-  correctlyLabeledPointIndices <- testDf$class == wetlandClass | testDf$class == nonwetlandClass
-  testDf <- testDf[correctlyLabeledPointIndices,]
-  
+
+  # Convert all character variables to factors with their saved levels
+  for (varName in names(testDf)) {
+    if (is.character(testDf[[varName]])) {
+      testDf[[varName]] <- factor(testDf[[varName]], levels = modelInfo$inputVars[[varName]])
+    }
+  }
+
   # Make sure there are at least some points classified with the given
   # wetland/non-wetland class names
-  if (nrow(testDf) == 0)
+  correctlyLabeledPointIndices <- testDf$class == wetlandClass | testDf$class == nonwetlandClass
+  if (sum(correctlyLabeledPointIndices) == 0)
     logAndStop(paste0("No points in the dataset with the given
                       wetland/non-wetland classes: '", wetlandClass, "'/'",
                       nonwetlandClass, "'."))
 
+  # Remove points that aren't labeled wetland/non-wetland
+  testDf <- testDf[correctlyLabeledPointIndices,]
+
   # Remove points with NA values
   testDf <- na.omit(testDf)
-  
+
   # Convert class field to factor
   testDf$class <- factor(testDf$class)
-  
+
   cat("Ground-truth classifications:\n", file = logFilename, append = TRUE)
   capture.output(summary(testDf$class), file = logFilename, append = TRUE)
 
@@ -191,10 +200,10 @@ tool_exec <- function(in_params, out_params) {
   givenInputVars <- colnames(testDf)[-1]
   if (!all(expectedInputVars %in% givenInputVars))
     logAndStop(paste0("Input variables (",
-                      paste0(givenInputVars, collapse = ", "), 
-                      ") do not match those expected by the model (", 
+                      paste0(givenInputVars, collapse = ", "),
+                      ") do not match those expected by the model (",
                       paste0(expectedInputVars, collapse = ", "), ")\n"))
-  
+
   # Run model on test dataset
   testDataPredictions <- predict(
     rfModel,
@@ -287,6 +296,21 @@ if (FALSE) {
       modelFile = "puy_grad15_dev300_geo.RFmodel",
       inputRasterFiles = list("grad_15.tif", "dev_300.tif"),
       inputShapeFiles = list("geo.shp"),
+      testPointsFile = "wetlandPoints.shp",
+      classFieldName = "NEWCLASS",
+      wetlandClass = "WET",
+      nonwetlandClass = "UPL",
+      calcStats = TRUE
+    ),
+    out_params = list(probRasterName = NULL)
+  )
+
+  tool_exec(
+    in_params = list(
+      workingDir = "C:/Work/netmapdata/Mashel",
+      modelFile = "puy_georaster.RFmodel",
+      inputRasterFiles = list("geo_unit.tif"),
+      inputShapeFiles = list(),
       testPointsFile = "wetlandPoints.shp",
       classFieldName = "NEWCLASS",
       wetlandClass = "WET",
