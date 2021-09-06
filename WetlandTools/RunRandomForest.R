@@ -89,12 +89,6 @@ tool_exec <- function(in_params, out_params) {
   # Load rasters
   rasterList <- lapply(inputRasterFiles, function(file) terra::rast(file))
 
-  # Align all rasters with the first given raster
-  # TODO: No longer necessary now that rasters aren't stored in a stack?
-  if (length(rasterList) > 0) {
-    rasterList <- TerrainWorksUtils::alignRasters(rasterList[[1]], rasterList)
-  }
-
   # Load shapes
   shapeList <- lapply(inputShapeFiles, function(file) terra::vect(file))
 
@@ -110,40 +104,9 @@ tool_exec <- function(in_params, out_params) {
   )
 
   # Add predictor variables from input rasters
-  # TODO: Support multi-band factor rasters?
   for (raster in rasterList) {
-    # Project the points into the same CRS as the raster
-    projectedPoints <- terra::project(testPoints, raster)
-
-    if (terra::is.factor(raster)) {
-      # NOTE:
-      # terra seems to have problems reading values from some factor
-      # raster files. Extracting points from a factor raster (made using the
-      # 'polygon to raster' tool in ArcGIS) with factor=TRUE returns the Count
-      # field values instead of the specified 'value field'. The Count values
-      # also seem to be misleveled by 1 row when you look at the
-      # terra::cats() table for the raster. Therefore, extracting the desired
-      # char factor has to be done in this roundabout way:
-
-      # Extract numeric factor value at each point
-      rasterValues <- terra::extract(raster, projectedPoints, method = "simple", factor = FALSE)[,-1]
-
-      # Map the numeric factor values to their corresponding char values
-      factorDf <- terra::cats(raster)[[1]]
-      factorNamesCol <- which(sapply(factorDf, class) == "character")
-      factorNames <- factorDf[,factorNamesCol]
-      rasterValues <- factorNames[rasterValues]
-
-      # Add values to training dataset
-      varName <- colnames(factorDf)[factorNamesCol]
-      testDf[[varName]] <- rasterValues
-    } else {
-      # Extract continuous value at each point
-      rasterValues <- terra::extract(raster, projectedPoints, method = "simple")[,-1]
-
-      # Add values to training dataset
-      testDf[[names(raster)]] <- rasterValues
-    }
+    rasterValues <- TerrainWorksUtils::extractRasterValues(raster, testPoints, stringsAsFactors = FALSE)
+    testDf <- cbind(testDf, rasterValues)
   }
 
   # Add predictor values from input shapes
@@ -293,24 +256,9 @@ if (FALSE) {
   tool_exec(
     in_params = list(
       workingDir = "C:/Work/netmapdata/Mashel",
-      modelFile = "puy_grad15_dev300_geo.RFmodel",
-      inputRasterFiles = list("grad_15.tif", "dev_300.tif"),
-      inputShapeFiles = list("geo.shp"),
-      testPointsFile = "wetlandPoints.shp",
-      classFieldName = "NEWCLASS",
-      wetlandClass = "WET",
-      nonwetlandClass = "UPL",
-      calcStats = TRUE
-    ),
-    out_params = list(probRasterName = NULL)
-  )
-
-  tool_exec(
-    in_params = list(
-      workingDir = "C:/Work/netmapdata/Mashel",
-      modelFile = "puy_georaster.RFmodel",
-      inputRasterFiles = list("geo_unit.tif"),
-      inputShapeFiles = list(),
+      modelFile = "puy_grad15_dev300_geounit_litho.RFmodel",
+      inputRasterFiles = list("grad_15.tif", "dev_300.tif", "geo_unit.tif"),
+      inputShapeFiles = list("lithology.shp"),
       testPointsFile = "wetlandPoints.shp",
       classFieldName = "NEWCLASS",
       wetlandClass = "WET",

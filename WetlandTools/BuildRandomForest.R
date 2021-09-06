@@ -73,12 +73,6 @@ tool_exec <- function(in_params, out_params) {
   # Load rasters
   rasterList <- lapply(inputRasterFiles, function(file) terra::rast(file))
 
-  # Align all rasters with the first given raster
-  # TODO: No longer necessary now that rasters aren't stored in a stack?
-  if (length(rasterList) > 0) {
-    rasterList <- TerrainWorksUtils::alignRasters(rasterList[[1]], rasterList)
-  }
-
   # Load shapes
   shapeList <- lapply(inputShapeFiles, function(file) terra::vect(file))
 
@@ -94,40 +88,9 @@ tool_exec <- function(in_params, out_params) {
   )
 
   # Add predictor variables from input rasters
-  # TODO: Support multi-band factor rasters?
   for (raster in rasterList) {
-    # Project the points into the same CRS as the raster
-    projectedPoints <- terra::project(trainingPoints, raster)
-
-    if (terra::is.factor(raster)) {
-      # NOTE:
-      # terra seems to have problems reading values from some factor
-      # raster files. Extracting points from a factor raster (made using the
-      # 'polygon to raster' tool in ArcGIS) with factor=TRUE returns the Count
-      # field values instead of the specified 'value field'. The Count values
-      # also seem to be misleveled by 1 row when you look at the
-      # terra::cats() table for the raster. Therefore, extracting the desired
-      # char factor has to be done in this roundabout way:
-
-      # Extract numeric factor value at each point
-      rasterValues <- terra::extract(raster, projectedPoints, method = "simple", factor = FALSE)[,-1]
-
-      # Map the numeric factor values to their corresponding char values
-      factorDf <- terra::cats(raster)[[1]]
-      factorNamesCol <- which(sapply(factorDf, class) == "character")
-      factorNames <- factorDf[,factorNamesCol]
-      rasterValues <- factorNames[rasterValues]
-
-      # Add values to training dataset
-      varName <- colnames(factorDf)[factorNamesCol]
-      trainingDf[[varName]] <- rasterValues
-    } else {
-      # Extract continuous value at each point
-      rasterValues <- terra::extract(raster, projectedPoints, method = "simple")[,-1]
-
-      # Add values to training dataset
-      trainingDf[[names(raster)]] <- rasterValues
-    }
+    rasterValues <- TerrainWorksUtils::extractRasterValues(raster, trainingPoints, stringsAsFactors = FALSE)
+    trainingDf <- cbind(trainingDf, rasterValues)
   }
 
   # Add predictor variables from input shapes
@@ -308,28 +271,13 @@ if (FALSE) {
   tool_exec(
     in_params = list(
       workingDir = "C:/Work/netmapdata/Puyallup",
-      inputRasterFiles = list("grad_15.tif", "dev_300.tif"),
-      inputShapeFiles = list("geo.shp"),
+      inputRasterFiles = list("grad_15.tif", "dev_300.tif", "geo_unit.tif"),
+      inputShapeFiles = list("lithology.shp"),
       trainingDatasetFile = "wetlandPnts.shp",
       classFieldName = "NEWCLASS",
       wetlandClass = "WET",
       nonwetlandClass = "UPL",
-      modelName = "puy_grad15_dev300_geo",
-      calcStats = TRUE
-    ),
-    out_params = list(probRasterName = NULL)
-  )
-
-  tool_exec(
-    in_params = list(
-      workingDir = "C:/Work/netmapdata/Puyallup",
-      inputRasterFiles = list("geo_unit.tif"),
-      inputShapeFiles = NULL,
-      trainingDatasetFile = "wetlandPnts.shp",
-      classFieldName = "NEWCLASS",
-      wetlandClass = "WET",
-      nonwetlandClass = "UPL",
-      modelName = "puy_geounit",
+      modelName = "puy_grad15_dev300_geounit_litho",
       calcStats = TRUE
     ),
     out_params = list(probRasterName = NULL)
@@ -346,38 +294,6 @@ if (FALSE) {
       wetlandClass = "WET",
       nonwetlandClass = "UPL",
       modelName = "puy_grad15_dev300_geo",
-      calcStats = TRUE
-    ),
-    out_params = list(probRasterName = NULL)
-  )
-
-  # Test in Puyallup region (WORK2)
-  tool_exec(
-    in_params = list(
-      workingDir = "E:/NetmapData/HohLidar",
-      inputRasterFiles = list("grad_15.flt"),
-      inputShapeFiles = list("geo.shp"),
-      trainingDatasetFile = "Hoh_samplePoints2_unk_rmv.shp",
-      classFieldName = "Class",
-      wetlandClass = "WET",
-      nonwetlandClass = "UPL",
-      modelName = "hoh_grad15_geo",
-      calcStats = TRUE
-    ),
-    out_params = list(probRasterName = NULL)
-  )
-
-  # Test in Puyallup region (Baker)
-  tool_exec(
-    in_params = list(
-      workingDir = "~/Work/Data/puyallup",
-      inputRasterFiles = list("grad_15.tif", "dev_300.tif"),
-      inputShapeFiles = list(),
-      trainingDatasetFile = "wetlandPnts.shp",
-      classFieldName = "NEWCLASS",
-      wetlandClass = "WET",
-      nonwetlandClass = "UPL",
-      modelName = "puy_grad15_dev300",
       calcStats = TRUE
     ),
     out_params = list(probRasterName = NULL)
