@@ -159,9 +159,10 @@ tool_exec <- function(in_params, out_params) {
   # Predict classes with model -------------------------------------------------
 
   # Make sure the model has been given all its expected input variables
-  expectedInputVars <- names(modelInfo$inputVars)
-  givenInputVars <- colnames(testDf)[-1]
-  if (!all(expectedInputVars %in% givenInputVars))
+  expectedInputVars <- sort(names(modelInfo$inputVars))
+  givenInputVars <- sort(colnames(testDf)[-1])
+  
+  if (!all(expectedInputVars == givenInputVars))
     logAndStop(paste0("Input variables (",
                       paste0(givenInputVars, collapse = ", "),
                       ") do not match those expected by the model (",
@@ -275,6 +276,22 @@ if (FALSE) {
       modelFile = "puy_grad15_dev300_geo.RFmodel",
       inputRasterFiles = list("grad_15.tif", "dev_300.tif"),
       inputShapePoints = list("geo.shp"),
+      testPointsFile = "mashelPoints.shp",
+      classFieldName = "NEWCLASS",
+      wetlandClass = "WET",
+      nonwetlandClass = "UPL",
+      calcStats = TRUE
+    ),
+    out_params = list(probRasterName = NULL)
+  )
+  
+  # Test Pack Forest model in Mashel region (WORK2)
+  tool_exec(
+    in_params = list(
+      workingDir = "E:/NetmapData/Mashel",
+      modelFile = "pf_grad15_plan15_litho.RFmodel",
+      inputRasterFiles = list("grad_15.tif", "plan_15.tif"),
+      inputShapePoints = list("lithology.shp"),
       testPointsFile = "mashelPoints.shp",
       classFieldName = "NEWCLASS",
       wetlandClass = "WET",

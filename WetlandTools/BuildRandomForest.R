@@ -111,11 +111,38 @@ tool_exec <- function(in_params, out_params) {
       }
     }
   }
+  
+  # Record input variable names and levels (if factor)
+  inputVars <- list()
+  for (raster in rasterList) {
+    for (i in seq_len(terra::nlyr(raster))) {
+      layer <- raster[[i]]
+      if (terra::is.factor(layer)) {
+        levelsDf <- terra::cats(layer)[[1]]
+        levelsCol <- which(sapply(levelsDf, class) == "character")
+        levels <- levelsDf[,levelsCol]
+        varName <- colnames(levelsDf)[levelsCol]
+        inputVars[[varName]] <- levelNames
+      } else {
+        inputVars[[names(layer)]] <- NA
+      }
+    }
+  }
+  for (shape in shapeList) {
+    for (varName in names(shape)) {
+      if (is.character(class(shape[[varName]]))) {
+        levels <- unique(terra::values(shape)[[varName]])
+        inputVars[[varName]] <- levels
+      } else {
+        inputVars[[varName]] <- NA
+      }
+    }
+  }
 
   # Convert all character variables to factor
   for (varName in names(trainingDf)) {
     if (is.character(trainingDf[[varName]])) {
-      trainingDf[[varName]] <- factor(trainingDf[[varName]])
+      trainingDf[[varName]] <- factor(trainingDf[[varName]], levels = inputVars[[varName]])
     }
   }
 
@@ -146,17 +173,14 @@ tool_exec <- function(in_params, out_params) {
     ntree = 200,
     importance = TRUE
   )
+  
+  # Log model information
+  capture.output(rfModel, file = logFilename, append = TRUE)
+  capture.output(randomForest::importance(rfModel), file = logFilename, append = TRUE)
+  
+  # Save model file ------------------------------------------------------------
 
-  # Record all input variables and their levels (if factor)
-  inputVars <- list()
-  for (inputVar in names(trainingDf)) {
-    if (inputVar == "class") next
-    inputVars[[inputVar]] <- NA
-    if (is.factor(trainingDf[[inputVar]]))
-      inputVars[[inputVar]] <- levels(trainingDf[[inputVar]])
-  }
-
-  # Store the model and its required input variables
+  # Store the model and its input variables
   modelInfo <- list(
     model = rfModel,
     inputVars = inputVars
@@ -166,9 +190,6 @@ tool_exec <- function(in_params, out_params) {
   modelFilename <- paste0(modelName, ".RFmodel")
   save(modelInfo, file = modelFilename)
 
-  # Log model information
-  capture.output(rfModel, file = logFilename, append = TRUE)
-  capture.output(randomForest::importance(rfModel), file = logFilename, append = TRUE)
   cat(paste0("Model saved in: ", modelFilename, "\n"), file = logFilename, append = TRUE)
 
   # Plot model statistics ----------------------------------------------------
@@ -241,35 +262,25 @@ tool_exec <- function(in_params, out_params) {
   if (!is.null(probRasterName) && !is.na(probRasterName)) {
 
     if (length(rasterList) == 0)
-      stop("Must provide at least one input raster to use as a reference for
-           building the probability raster.")
+      logAndStop("Must provide at least one input raster to use as a reference 
+                 for building the probability raster.")
 
     # Rasterize all input variables
-    referenceRaster <- if (length(rasterList) > 0) {
-      rasterList[[1]]
-    } else {
-      extList <- lapply(shapeList, terra::ext)
-      terra::rast(
-        xmin = min(sapply(extList, terra::xmin)),
-        xmax = max(sapply(extList, terra::xmax)),
-        ymin = min(sapply(extList, terra::ymin)),
-        ymax = max(sapply(extList, terra::ymax)),
-        resolution = 1,
-        crs = terra::crs(shapeList[[1]])
-      )
+    referenceRaster <- rasterList[[1]]
+    alignedRasters <- TerrainWorksUtils::alignRasters(referenceRaster, rasterList)
+    
+    rasterStack <- c(alignedRasters[[1]])
+    
+    for (i in 2:length(alignedRasters)) {
+      rasterStack <- c(rasterStack, alignedRasters[[i]])
     }
-
-    inputRasters <- c()
-
-    if (length(rasterList) > 0) {
-      alignedRasters <- TerrainWorksUtils::alignRasters(referenceRaster, rasterList)
-      for (raster in alignedRasters) {
-        inputRasters <- c(inputRasters, raster)
-      }
-    }
-
+    
     for (shape in shapeList) {
-      #raster <- terra::rasterize(shape, )
+      shape <- terra::project(shape, referenceRaster)
+      for (varName in names(shape)) {
+        raster <- terra::rasterize(shape, referenceRaster, field = varName)
+        rasterStack <- c(rasterStack, raster)
+      }
     }
 
     # Predict probability rasters for wetland and non-wetland
@@ -327,6 +338,22 @@ if (FALSE) {
       wetlandClass = "WET",
       nonwetlandClass = "UPL",
       modelName = "puy_grad15_dev300_geo",
+      calcStats = TRUE
+    ),
+    out_params = list(probRasterName = "prob")
+  )
+  
+  # Test in Pack Forest region (WORK2)
+  tool_exec(
+    in_params = list(
+      workingDir = "C:/Work/Data/pack_forest",
+      inputRasterFiles = list("grad_15.tif", "plan_15.tif"),
+      inputShapeFiles = list("lithology.shp"),
+      trainingDatasetFile = "pf_training.shp",
+      classFieldName = "class",
+      wetlandClass = "WET",
+      nonwetlandClass = "UPL",
+      modelName = "pf_grad15_plan15_litho",
       calcStats = TRUE
     ),
     out_params = list(probRasterName = NULL)
