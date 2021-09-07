@@ -239,6 +239,39 @@ tool_exec <- function(in_params, out_params) {
   # Generate wetland probability raster ----------------------------------------
 
   if (!is.null(probRasterName) && !is.na(probRasterName)) {
+
+    if (length(rasterList) == 0)
+      stop("Must provide at least one input raster to use as a reference for
+           building the probability raster.")
+
+    # Rasterize all input variables
+    referenceRaster <- if (length(rasterList) > 0) {
+      rasterList[[1]]
+    } else {
+      extList <- lapply(shapeList, terra::ext)
+      terra::rast(
+        xmin = min(sapply(extList, terra::xmin)),
+        xmax = max(sapply(extList, terra::xmax)),
+        ymin = min(sapply(extList, terra::ymin)),
+        ymax = max(sapply(extList, terra::ymax)),
+        resolution = 1,
+        crs = terra::crs(shapeList[[1]])
+      )
+    }
+
+    inputRasters <- c()
+
+    if (length(rasterList) > 0) {
+      alignedRasters <- TerrainWorksUtils::alignRasters(referenceRaster, rasterList)
+      for (raster in alignedRasters) {
+        inputRasters <- c(inputRasters, raster)
+      }
+    }
+
+    for (shape in shapeList) {
+      #raster <- terra::rasterize(shape, )
+    }
+
     # Predict probability rasters for wetland and non-wetland
     probRaster <- terra::predict(
       rasterStack,
