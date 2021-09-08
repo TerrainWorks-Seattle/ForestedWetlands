@@ -72,6 +72,30 @@ tool_exec <- function(in_params, out_params) {
 
   # Load rasters
   rasterList <- lapply(inputRasterFiles, function(file) terra::rast(file))
+  
+  # Make sure factor rasters are formatted correctly
+  for (i in seq_len(length(rasterList))) {
+    raster <- rasterList[[i]]
+    
+    if (terra::is.factor(raster)) {
+      levelsDf <- terra::cats(raster)[[1]]
+      levelsCol <- which(sapply(levelsDf, class) == "character")
+      levels <- levelsDf[,levelsCol]
+      
+      numericValues <- terra::values(raster)[,1]
+      factorValues <- levels[numericValues]
+      
+      factorRaster <- terra::rast(
+        extent = terra::ext(raster),
+        crs = terra::crs(raster),
+        resolution = terra::res(raster),
+        vals = factorValues,
+        names = colnames(levelsDf)[levelsCol]
+      )
+      
+      rasterList[[i]] <- factorRaster
+    }
+  }
 
   # Load shapes
   shapeList <- lapply(inputShapeFiles, function(file) terra::vect(file))
@@ -122,7 +146,7 @@ tool_exec <- function(in_params, out_params) {
         levelsCol <- which(sapply(levelsDf, class) == "character")
         levels <- levelsDf[,levelsCol]
         varName <- colnames(levelsDf)[levelsCol]
-        inputVars[[varName]] <- levelNames
+        inputVars[[varName]] <- levels
       } else {
         inputVars[[names(layer)]] <- NA
       }
@@ -263,13 +287,15 @@ tool_exec <- function(in_params, out_params) {
 
     if (length(rasterList) == 0)
       logAndStop("Must provide at least one input raster to use as a reference 
-                 for building the probability raster.")
+                 for the probability raster.")
 
-    # Rasterize all input variables
+    # Rasterize all inputs
     referenceRaster <- rasterList[[1]]
     alignedRasters <- TerrainWorksUtils::alignRasters(referenceRaster, rasterList)
     
     rasterStack <- c(alignedRasters[[1]])
+    
+    
     
     for (i in 2:length(alignedRasters)) {
       rasterStack <- c(rasterStack, alignedRasters[[i]])
@@ -347,13 +373,13 @@ if (FALSE) {
   tool_exec(
     in_params = list(
       workingDir = "C:/Work/Data/pack_forest",
-      inputRasterFiles = list("grad_15.tif", "plan_15.tif"),
+      inputRasterFiles = list("grad_15.tif", "geounit.tif"),
       inputShapeFiles = list("lithology.shp"),
       trainingDatasetFile = "pf_training.shp",
       classFieldName = "class",
       wetlandClass = "WET",
       nonwetlandClass = "UPL",
-      modelName = "pf_grad15_plan15_litho",
+      modelName = "pf_grad15_geounit_litho",
       calcStats = TRUE
     ),
     out_params = list(probRasterName = NULL)
