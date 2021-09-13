@@ -72,33 +72,45 @@ tool_exec <- function(in_params, out_params) {
 
   # Load rasters
   rasterList <- lapply(inputRasterFiles, function(file) terra::rast(file))
-  
-  # Make sure factor rasters are formatted correctly
-  for (i in seq_len(length(rasterList))) {
-    raster <- rasterList[[i]]
-    
-    if (terra::is.factor(raster)) {
-      levelsDf <- terra::cats(raster)[[1]]
-      levelsCol <- which(sapply(levelsDf, class) == "character")
-      levels <- levelsDf[,levelsCol]
-      
-      numericValues <- terra::values(raster)[,1]
-      factorValues <- levels[numericValues]
-      
-      factorRaster <- terra::rast(
-        extent = terra::ext(raster),
-        crs = terra::crs(raster),
-        resolution = terra::res(raster),
-        vals = factorValues,
-        names = colnames(levelsDf)[levelsCol]
-      )
-      
-      rasterList[[i]] <- factorRaster
-    }
-  }
 
   # Load shapes
   shapeList <- lapply(inputShapeFiles, function(file) terra::vect(file))
+
+  # Make sure factor rasters are factored correctly
+  for (i in seq_len(length(rasterList))) {
+    raster <- rasterList[[i]]
+    if (terra::is.factor(raster)) {
+      rasterList[[i]] <- TerrainWorksUtils::fixFactorRaster(raster)
+    }
+  }
+
+  # Record input variable metadata ---------------------------------------------
+
+  # A place to store metadata
+  inputVars <- list()
+
+  # Record raster input variables
+  for (raster in rasterList) {
+    for (varName in names(raster)) {
+      layer <- raster[[varName]]
+      if (terra::is.factor(layer)) {
+        inputVars[[varName]] <- list(levels = terra::levels(layer)[[1]], cats = terra::cats(layer)[[1]])
+      } else {
+        inputVars[[varName]] <- NA
+      }
+    }
+  }
+
+  # Record shape input variables
+  for (shape in shapeList) {
+    for (varName in names(shape)) {
+      if (is.character(class(shape[[varName]]))) {
+        inputVars[[varName]] <- list(levels = unique(terra::values(shape)[[varName]]))
+      } else {
+        inputVars[[varName]] <- NA
+      }
+    }
+  }
 
   # Build training dataset -----------------------------------------------------
 
@@ -108,16 +120,17 @@ tool_exec <- function(in_params, out_params) {
   # Define the training dataset. This will store all the predictor variables as
   # well as the response class variable
   trainingDf <- data.frame(
-    class = terra::values(trainingPoints)[[classFieldName]]
+    class = terra::values(trainingPoints)[[classFieldName]],
+    stringsAsFactors = TRUE
   )
 
-  # Add predictor variables from input rasters
+  # Add input raster variables
   for (raster in rasterList) {
     rasterValues <- TerrainWorksUtils::extractRasterValues(raster, trainingPoints, stringsAsFactors = FALSE)
     trainingDf <- cbind(trainingDf, rasterValues)
   }
 
-  # Add predictor variables from input shapes
+  # Add input shape variables
   for (shape in shapeList) {
     # Project the points into the same CRS as the shape
     projectedPoints <- terra::project(trainingPoints, shape)
@@ -135,38 +148,11 @@ tool_exec <- function(in_params, out_params) {
       }
     }
   }
-  
-  # Record input variable names and levels (if factor)
-  inputVars <- list()
-  for (raster in rasterList) {
-    for (i in seq_len(terra::nlyr(raster))) {
-      layer <- raster[[i]]
-      if (terra::is.factor(layer)) {
-        levelsDf <- terra::cats(layer)[[1]]
-        levelsCol <- which(sapply(levelsDf, class) == "character")
-        levels <- levelsDf[,levelsCol]
-        varName <- colnames(levelsDf)[levelsCol]
-        inputVars[[varName]] <- levels
-      } else {
-        inputVars[[names(layer)]] <- NA
-      }
-    }
-  }
-  for (shape in shapeList) {
-    for (varName in names(shape)) {
-      if (is.character(class(shape[[varName]]))) {
-        levels <- unique(terra::values(shape)[[varName]])
-        inputVars[[varName]] <- levels
-      } else {
-        inputVars[[varName]] <- NA
-      }
-    }
-  }
 
-  # Convert all character variables to factor
+  # Convert all character variables to factors
   for (varName in names(trainingDf)) {
     if (is.character(trainingDf[[varName]])) {
-      trainingDf[[varName]] <- factor(trainingDf[[varName]], levels = inputVars[[varName]])
+      trainingDf[[varName]] <- factor(trainingDf[[varName]], levels = inputVars[[varName]]$levels)
     }
   }
 
@@ -197,11 +183,11 @@ tool_exec <- function(in_params, out_params) {
     ntree = 200,
     importance = TRUE
   )
-  
+
   # Log model information
   capture.output(rfModel, file = logFilename, append = TRUE)
   capture.output(randomForest::importance(rfModel), file = logFilename, append = TRUE)
-  
+
   # Save model file ------------------------------------------------------------
 
   # Store the model and its input variables
@@ -286,32 +272,35 @@ tool_exec <- function(in_params, out_params) {
   if (!is.null(probRasterName) && !is.na(probRasterName)) {
 
     if (length(rasterList) == 0)
-      logAndStop("Must provide at least one input raster to use as a reference 
+      logAndStop("Must provide at least one input raster to use as a reference
                  for the probability raster.")
 
     # Rasterize all inputs
+
     referenceRaster <- rasterList[[1]]
     alignedRasters <- TerrainWorksUtils::alignRasters(referenceRaster, rasterList)
-    
-    rasterStack <- c(alignedRasters[[1]])
-    
-    
-    
-    for (i in 2:length(alignedRasters)) {
-      rasterStack <- c(rasterStack, alignedRasters[[i]])
+
+    inputRaster <- c(alignedRasters[[1]])
+
+    # Include input raster variables
+    if (length(alignedRasters) > 1) {
+      for (i in 2:length(alignedRasters)) {
+        inputRaster <- c(inputRaster, alignedRasters[[i]])
+      }
     }
-    
+
+    # Include input shape variables
     for (shape in shapeList) {
       shape <- terra::project(shape, referenceRaster)
       for (varName in names(shape)) {
         raster <- terra::rasterize(shape, referenceRaster, field = varName)
-        rasterStack <- c(rasterStack, raster)
+        inputRaster <- c(inputRaster, raster)
       }
     }
 
     # Predict probability rasters for wetland and non-wetland
     probRaster <- terra::predict(
-      rasterStack,
+      inputRaster,
       rfModel,
       na.rm = TRUE,
       type = "prob"
@@ -337,20 +326,20 @@ tool_exec <- function(in_params, out_params) {
 # Tests
 if (FALSE) {
 
-  # Test in Puyallup region (BIGLAPTOP)
+  # Test in Pack Forest region (BIGLAPTOP)
   tool_exec(
     in_params = list(
-      workingDir = "C:/Work/netmapdata/Puyallup",
-      inputRasterFiles = list("grad_15.tif", "dev_300.tif", "geo_unit.tif"),
-      inputShapeFiles = list("lithology.shp"),
-      trainingDatasetFile = "wetlandPnts.shp",
-      classFieldName = "NEWCLASS",
+      workingDir = "C:/Work/netmapdata/pack_forest",
+      inputRasterFiles = list("geo_unit.tif"),
+      inputShapeFiles = list(),
+      trainingDatasetFile = "trainingPoints.shp",
+      classFieldName = "class",
       wetlandClass = "WET",
       nonwetlandClass = "UPL",
-      modelName = "puy_grad15_dev300_geounit_litho",
-      calcStats = TRUE
+      modelName = "pf_geounit",
+      calcStats = FALSE
     ),
-    out_params = list(probRasterName = NULL)
+    out_params = list(probRasterName = "prob")
   )
 
   # Test in Puyallup region (WORK2)
@@ -368,7 +357,7 @@ if (FALSE) {
     ),
     out_params = list(probRasterName = "prob")
   )
-  
+
   # Test in Pack Forest region (WORK2)
   tool_exec(
     in_params = list(
@@ -383,6 +372,22 @@ if (FALSE) {
       calcStats = TRUE
     ),
     out_params = list(probRasterName = NULL)
+  )
+
+  # Test in Pack Forest region with wetland points only in OEvba geounits (BIGLAPTOP)
+  tool_exec(
+    in_params = list(
+      workingDir = "C:/Work/netmapdata/pack_forest",
+      inputRasterFiles = list("geo_unit.tif"),
+      inputShapeFiles = list(),
+      trainingDatasetFile = "GeoUnitTestPoints.shp",
+      classFieldName = "Class",
+      wetlandClass = "WET",
+      nonwetlandClass = "UPL",
+      modelName = "pf_geounit",
+      calcStats = FALSE
+    ),
+    out_params = list(probRasterName = "prob")
   )
 
 }

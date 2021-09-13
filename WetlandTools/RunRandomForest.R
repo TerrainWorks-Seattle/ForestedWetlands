@@ -92,6 +92,16 @@ tool_exec <- function(in_params, out_params) {
   # Load shapes
   shapeList <- lapply(inputShapeFiles, function(file) terra::vect(file))
 
+  # Make sure factor rasters are factored correctly
+  for (i in seq_len(length(rasterList))) {
+    raster <- rasterList[[i]]
+    if (terra::is.factor(raster)) {
+      fixedFactorRaster <- TerrainWorksUtils::fixFactorRaster(raster)
+      expectedCats <- modelInfo$inputVars[[names(fixedFactorRaster)]]$cats
+      rasterList[[i]] <- TerrainWorksUtils::applyCats(fixedFactorRaster, expectedCats)
+    }
+  }
+
   # Build test dataset ---------------------------------------------------------
 
   # Load the test points
@@ -100,7 +110,8 @@ tool_exec <- function(in_params, out_params) {
   # Define the test dataset. This will store all the predictor variables as
   # well as the response variable (wetland/non-wetland class)
   testDf <- data.frame(
-    class = terra::values(testPoints)[[classFieldName]]
+    class = terra::values(testPoints)[[classFieldName]],
+    stringsAsFactors = TRUE
   )
 
   # Add predictor variables from input rasters
@@ -132,7 +143,7 @@ tool_exec <- function(in_params, out_params) {
   # Convert all character variables to factors with their saved levels
   for (varName in names(testDf)) {
     if (is.character(testDf[[varName]])) {
-      testDf[[varName]] <- factor(testDf[[varName]], levels = modelInfo$inputVars[[varName]])
+      testDf[[varName]] <- factor(testDf[[varName]], levels = modelInfo$inputVars[[varName]]$levels)
     }
   }
 
@@ -150,9 +161,6 @@ tool_exec <- function(in_params, out_params) {
   # Remove points with NA values
   testDf <- na.omit(testDf)
 
-  # Convert class field to factor
-  testDf$class <- factor(testDf$class)
-
   cat("Ground-truth classifications:\n", file = logFilename, append = TRUE)
   capture.output(summary(testDf$class), file = logFilename, append = TRUE)
 
@@ -161,7 +169,7 @@ tool_exec <- function(in_params, out_params) {
   # Make sure the model has been given all its expected input variables
   expectedInputVars <- sort(names(modelInfo$inputVars))
   givenInputVars <- sort(colnames(testDf)[-1])
-  
+
   if (!all(expectedInputVars == givenInputVars))
     logAndStop(paste0("Input variables (",
                       paste0(givenInputVars, collapse = ", "),
@@ -225,9 +233,37 @@ tool_exec <- function(in_params, out_params) {
   # Generate probability raster ------------------------------------------------
 
   if (!is.null(probRasterName) && !is.na(probRasterName)) {
+
+    if (length(rasterList) == 0)
+      logAndStop("Must provide at least one input raster to use as a reference
+                 for the probability raster.")
+
+    # Rasterize all inputs
+
+    referenceRaster <- rasterList[[1]]
+    alignedRasters <- TerrainWorksUtils::alignRasters(referenceRaster, rasterList)
+
+    inputRaster <- c(alignedRasters[[1]])
+
+    # Include input raster variables
+    if (length(alignedRasters) > 1) {
+      for (i in 2:length(alignedRasters)) {
+        inputRaster <- c(inputRaster, alignedRasters[[i]])
+      }
+    }
+
+    # Include input shape variables
+    for (shape in shapeList) {
+      shape <- terra::project(shape, referenceRaster)
+      for (varName in names(shape)) {
+        raster <- terra::rasterize(shape, referenceRaster, field = varName)
+        inputRaster <- c(inputRaster, raster)
+      }
+    }
+
     # Predict probability rasters for wetland and non-wetland
     probRaster <- terra::predict(
-      rasterStack,
+      inputRaster,
       rfModel,
       na.rm = TRUE,
       type = "prob"
@@ -242,6 +278,7 @@ tool_exec <- function(in_params, out_params) {
     )
 
     cat(paste0("Created probability raster: ", paste0(probRasterName, ".tif"), "\n"), file = logFilename, append = TRUE)
+
   }
 
   # Return ---------------------------------------------------------------------
@@ -257,16 +294,16 @@ if (FALSE) {
   tool_exec(
     in_params = list(
       workingDir = "C:/Work/netmapdata/Mashel",
-      modelFile = "puy_grad15_dev300_geounit_litho.RFmodel",
-      inputRasterFiles = list("grad_15.tif", "dev_300.tif", "geo_unit.tif"),
-      inputShapeFiles = list("lithology.shp"),
+      modelFile = "pf_grad15_geounit.RFmodel",
+      inputRasterFiles = list("grad_15.tif", "geo_unit.tif"),
+      inputShapeFiles = list(),
       testPointsFile = "wetlandPoints.shp",
       classFieldName = "NEWCLASS",
       wetlandClass = "WET",
       nonwetlandClass = "UPL",
-      calcStats = TRUE
+      calcStats = FALSE
     ),
-    out_params = list(probRasterName = NULL)
+    out_params = list(probRasterName = "prob")
   )
 
   # Test Puyallup model in Mashel region (WORK2)
@@ -284,7 +321,7 @@ if (FALSE) {
     ),
     out_params = list(probRasterName = NULL)
   )
-  
+
   # Test Pack Forest model in Mashel region (WORK2)
   tool_exec(
     in_params = list(
@@ -300,5 +337,37 @@ if (FALSE) {
     ),
     out_params = list(probRasterName = NULL)
   )
+
+
+
+
+
+
+
+
+
+
+
+  # Test Pack Forest factor raster model in Pack Forest region (BIGLAPTOP)
+  tool_exec(
+    in_params = list(
+      workingDir = "C:/Work/netmapdata/Mashel",
+      modelFile = "pf_geounit.RFmodel",
+      inputRasterFiles = list("geo_unit.tif"),
+      inputShapeFiles = list(),
+      testPointsFile = "wetlandPoints.shp",
+      classFieldName = "NEWCLASS",
+      wetlandClass = "WET",
+      nonwetlandClass = "UPL",
+      calcStats = FALSE
+    ),
+    out_params = list(probRasterName = "prob")
+  )
+
+
+
+
+
+
 
 }
