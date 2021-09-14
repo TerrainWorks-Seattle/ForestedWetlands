@@ -23,13 +23,15 @@ tool_exec <- function(in_params, out_params) {
   # Set input/output parameters ------------------------------------------------
 
   workingDir <- in_params[[1]]         # Working directory where model files will be stored
-  inputRasterFiles <- in_params[[2]]   # List of input raster filenames
-  trainingPointsFile <- in_params[[3]] # Filename of point feature classified by wetland type
-  classFieldName <- in_params[[4]]     # Name of the class field in the training dataset
-  wetlandClass <- in_params[[5]]       # Class name for wetlands
-  nonwetlandClass <- in_params[[6]]    # Class name for non-wetlands
-  modelName <- in_params[[7]]          # Name for the Random Forest model
-  calcStats <- in_params[[8]]          # Whether or not to calculate ROC statistics for the built model
+  referenceRasterFile <- in_params[[2]]    # Raster to use as a reference
+  inputRasterFiles <- in_params[[3]]   # List of input raster filenames
+  inputPolygonFiles <- in_params[[4]]  # List of input polygon filenames
+  trainingPointsFile <- in_params[[5]] # Filename of point feature classified by wetland type
+  classFieldName <- in_params[[6]]     # Name of the class field in the training dataset
+  wetlandClass <- in_params[[7]]       # Class name for wetlands
+  nonwetlandClass <- in_params[[8]]    # Class name for non-wetlands
+  modelName <- in_params[[9]]          # Name for the Random Forest model
+  calcStats <- in_params[[10]]         # Whether or not to calculate ROC statistics for the built model
   probRasterName <- out_params[[1]]    # Filename of the generated wetland probability raster
 
   # Setup ----------------------------------------------------------------------
@@ -47,31 +49,62 @@ tool_exec <- function(in_params, out_params) {
 
   # Validate parameters --------------------------------------------------------
 
-  # Make sure at least one input raster was given
-  if (length(inputRasterFiles) == 0)
-    logAndStop("Must provide at least one input raster\n")
+  # Make sure reference raster file exists
+  if (!file.exists(referenceRasterFile))
+    logAndStop(paste0("Could not find reference raster: '", referenceRasterFile, "'"))
+  
+  # Make sure at least one input raster or polygon was given
+  if (length(inputRasterFiles) == 0 && length(inputPolygonFiles) == 0)
+    logAndStop("Must provide at least one input raster or polygon\n")
 
   # Make sure all input raster files exist
-  lapply(inputRasterFiles, function(inputRasterFile) {
-    if (!file.exists(inputRasterFile))
-      logAndStop(paste0("Could not find input raster: '", inputRasterFile, "'\n"))
+  lapply(inputRasterFiles, function(file) {
+    if (!file.exists(file))
+      logAndStop(paste0("Could not find input raster: '", file, "'\n"))
+  })
+  
+  # Make sure all input polygon files exist
+  lapply(inputPolygonFiles, function(file) {
+    if (!file.exists(file))
+      logAndStop(paste0("Could not find input polygon: '", file, "'\n"))
   })
 
   # Make sure training points file exists
   if (!file.exists(trainingPointsFile))
     logAndStop(paste0("Could not find training points dataset: '", trainingPointsFile, "'\n"))
 
+  # Load reference raster ------------------------------------------------------
+  
+  referenceRaster <- terra::rast(referenceRasterFile)
+  
   # Load input variables -------------------------------------------------------
-
+  
   # Load input rasters
   rasterList <- lapply(inputRasterFiles, function(file) terra::rast(file))
+  
+  # Align rasters with the reference raster
+  rasterList <- TerrainWorksUtils::alignRasters(referenceRaster, rasterList)
 
-  # Make sure factor rasters are factored correctly (chararacter level names
+  # Make sure factor rasters are factored correctly (use character level names
   # rather than numeric level names)
   for (i in seq_len(length(rasterList))) {
     raster <- rasterList[[i]]
     if (terra::is.factor(raster)) {
       rasterList[[i]] <- TerrainWorksUtils::fixFactorRaster(raster)
+    }
+  }
+  
+  # Load input polygons
+  polygonList <- lapply(inputPolygonFiles, function(file) terra::vect(file))
+  
+  # Rasterize each polygon
+  i <- length(rasterList) + 1
+  for (polygon in polygonList) {
+    polygon <- terra::project(polygon, referenceRaster)
+    for (varName in names(polygon)) {
+      raster <- terra::rasterize(polygon, referenceRaster, field = varName)
+      rasterList[[i]] <- raster
+      i <- i + 1
     }
   }
 
@@ -235,14 +268,11 @@ tool_exec <- function(in_params, out_params) {
 
   if (!is.null(probRasterName) && !is.na(probRasterName)) {
 
-    # Align input rasters
-    alignedRasters <- TerrainWorksUtils::alignRasters(rasterList[[1]], rasterList)
-
-    # Combine input rasters into a single multi-layered raster
-    inputRaster <- alignedRasters[[1]]
-    if (length(alignedRasters) > 1) {
-      for (i in 2:length(alignedRasters)) {
-        inputRaster <- c(inputRaster, alignedRasters[[i]])
+    # Combine individual input rasters into a single multi-layered raster
+    inputRaster <- rasterList[[1]]
+    if (length(rasterList) > 1) {
+      for (i in 2:length(rasterList)) {
+        inputRaster <- c(inputRaster, rasterList[[i]])
       }
     }
 
@@ -308,15 +338,17 @@ if (FALSE) {
   tool_exec(
     in_params = list(
       workingDir = "C:/Work/Data/pack_forest",
+      referenceRasterFile = "pf_elev.tif",
       inputRasterFiles = list("grad_15.tif", "geounit.tif"),
-      trainingDatasetFile = "pf_training.shp",
+      inputPolygonFiles = list("lithology.shp"),
+      trainingDatasetFile = "training_points.shp",
       classFieldName = "class",
       wetlandClass = "WET",
       nonwetlandClass = "UPL",
-      modelName = "pf_grad15_geounit_litho",
-      calcStats = TRUE
+      modelName = "pf_grad_geounit_lithology",
+      calcStats = FALSE
     ),
-    out_params = list(probRasterName = NULL)
+    out_params = list(probRasterName = "prob")
   )
 
   # Test in Pack Forest region with wetland points only in OEvba geounits (BIGLAPTOP)
