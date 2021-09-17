@@ -31,8 +31,8 @@ tool_exec <- function(in_params, out_params) {
   wetlandClass <- in_params[[7]]        # Class name for wetlands
   nonwetlandClass <- in_params[[8]]     # Class name for non-wetlands
   modelName <- in_params[[9]]           # Name for the Random Forest model
-  calcStats <- in_params[[10]]          # Whether or not to calculate ROC statistics for the built model
-  probRasterName <- out_params[[1]]     # Filename of the generated wetland probability raster
+  calcStats <- out_params[[1]]          # Whether or not to calculate ROC statistics for the built model
+  probRasterName <- out_params[[2]]     # Filename of the generated wetland probability raster
 
   # Setup ----------------------------------------------------------------------
 
@@ -328,9 +328,12 @@ if (FALSE) {
       wetlandClass = "WET",
       nonwetlandClass = "UPL",
       modelName = "pf_grad15_geounit_lithology",
-      calcStats = FALSE
+      
     ),
-    out_params = list(probRasterName = "prob")
+    out_params = list(
+      calcStats = FALSE,
+      probRasterName = "prob"
+    )
   )
 
   # Test in Pack Forest region (WORK2)
@@ -344,10 +347,31 @@ if (FALSE) {
       classFieldName = "class",
       wetlandClass = "WET",
       nonwetlandClass = "UPL",
-      modelName = "pf_grad_geounit_lithology",
-      calcStats = FALSE
+      modelName = "pf_grad_geounit_lithology"
     ),
-    out_params = list(probRasterName = "prob")
+    out_params = list(
+      calcStats = FALSE,
+      probRasterName = "prob"
+    )
+  )
+  
+  # Test in Mashel region (WORK2)
+  tool_exec(
+    in_params = list(
+      workingDir = "E:/NetmapData/Mashel",
+      referenceRasterFile = "elev_mashel.flt",
+      inputRasterFiles = list("grad_15.tif", "geounit.tif"),
+      inputPolygonFiles = list("lithology.shp"),
+      trainingDatasetFile = "training_points.shp",
+      classFieldName = "class",
+      wetlandClass = "WET",
+      nonwetlandClass = "UPL",
+      modelName = "pf_grad15_geounit_lithology"
+    ),
+    out_params = list(
+      calcStats = FALSE,
+      probRasterName = "prob"
+    )
   )
 
 }

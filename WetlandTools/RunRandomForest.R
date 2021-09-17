@@ -36,8 +36,8 @@ tool_exec <- function(in_params, out_params) {
   classFieldName <- in_params[[7]]      # Name of the class field in the test dataset
   wetlandClass <- in_params[[8]]        # Class name for wetlands
   nonwetlandClass <- in_params[[9]]     # Class name for non-wetlands
-  calcStats <- in_params[[10]]           # Whether or not to calculate ROC statistics for the built model
-  probRasterName <- out_params[[1]]     # Filename of the generated wetland probability raster
+  calcStats <- out_params[[1]]          # Whether or not to calculate ROC statistics for the built model
+  probRasterName <- out_params[[2]]     # Filename of the generated wetland probability raster
 
   # Setup ----------------------------------------------------------------------
 
@@ -293,27 +293,31 @@ if (FALSE) {
       testPointsFile = "wetlandPoints.shp",
       classFieldName = "NEWCLASS",
       wetlandClass = "WET",
-      nonwetlandClass = "UPL",
-      calcStats = FALSE
+      nonwetlandClass = "UPL"
     ),
-    out_params = list(probRasterName = "prob")
+    out_params = list(
+      calcStats = FALSE,
+      probRasterName = "prob"
+    )
   )
 
   # Test Pack Forest model in Pack Forest region (BIGLAPTOP)
   tool_exec(
     in_params = list(
-      workingDir = "C:/Work/netmapdata/pack_forest",
-      modelFile = "pf_grad15_geounit_lithology.RFmodel",
-      referenceRaster = "pf_dem.tif",
-      inputRasterFiles = list("grad_15.tif", "plan_15.tif"),
+      workingDir = "C:/Work/Data/pack_forest",
+      modelFile = "pf_dev300_geounit_grad15_lithology.RFmodel",
+      referenceRaster = "pf_elev.tif",
+      inputRasterFiles = list("dev_300.tif", "grad_15.tif", "plan_15.tif"),
       inputPolygonFiles = list("lithology.shp"),
-      testPointsFile = "trainingPoints.shp",
+      testPointsFile = "training_points.shp",
       classFieldName = "class",
       wetlandClass = "WET",
-      nonwetlandClass = "UPL",
-      calcStats = FALSE
+      nonwetlandClass = "UPL"
     ),
-    out_params = list(probRasterName = "prob")
+    out_params = list(
+      calcStats = FALSE,
+      probRasterName = "prob"
+    )
   )
 
 }
