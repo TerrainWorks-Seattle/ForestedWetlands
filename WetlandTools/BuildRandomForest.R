@@ -22,17 +22,17 @@ tool_exec <- function(in_params, out_params) {
 
   # Set input/output parameters ------------------------------------------------
 
-  workingDir <- in_params[[1]]         # Working directory where model files will be stored
-  referenceRasterFile <- in_params[[2]]    # Raster to use as a reference
-  inputRasterFiles <- in_params[[3]]   # List of input raster filenames
-  inputPolygonFiles <- in_params[[4]]  # List of input polygon filenames
-  trainingPointsFile <- in_params[[5]] # Filename of point feature classified by wetland type
-  classFieldName <- in_params[[6]]     # Name of the class field in the training dataset
-  wetlandClass <- in_params[[7]]       # Class name for wetlands
-  nonwetlandClass <- in_params[[8]]    # Class name for non-wetlands
-  modelName <- in_params[[9]]          # Name for the Random Forest model
-  calcStats <- in_params[[10]]         # Whether or not to calculate ROC statistics for the built model
-  probRasterName <- out_params[[1]]    # Filename of the generated wetland probability raster
+  workingDir <- in_params[[1]]          # Working directory where model files will be stored
+  referenceRasterFile <- in_params[[2]] # Raster to use as a grid reference
+  inputRasterFiles <- in_params[[3]]    # List of input raster filenames
+  inputPolygonFiles <- in_params[[4]]   # List of input polygon filenames
+  trainingPointsFile <- in_params[[5]]  # Filename of point feature classified by wetland type
+  classFieldName <- in_params[[6]]      # Name of the class field in the training dataset
+  wetlandClass <- in_params[[7]]        # Class name for wetlands
+  nonwetlandClass <- in_params[[8]]     # Class name for non-wetlands
+  modelName <- in_params[[9]]           # Name for the Random Forest model
+  calcStats <- in_params[[10]]          # Whether or not to calculate ROC statistics for the built model
+  probRasterName <- out_params[[1]]     # Filename of the generated wetland probability raster
 
   # Setup ----------------------------------------------------------------------
 
@@ -52,7 +52,7 @@ tool_exec <- function(in_params, out_params) {
   # Make sure reference raster file exists
   if (!file.exists(referenceRasterFile))
     logAndStop(paste0("Could not find reference raster: '", referenceRasterFile, "'"))
-  
+
   # Make sure at least one input raster or polygon was given
   if (length(inputRasterFiles) == 0 && length(inputPolygonFiles) == 0)
     logAndStop("Must provide at least one input raster or polygon\n")
@@ -62,7 +62,7 @@ tool_exec <- function(in_params, out_params) {
     if (!file.exists(file))
       logAndStop(paste0("Could not find input raster: '", file, "'\n"))
   })
-  
+
   # Make sure all input polygon files exist
   lapply(inputPolygonFiles, function(file) {
     if (!file.exists(file))
@@ -74,39 +74,51 @@ tool_exec <- function(in_params, out_params) {
     logAndStop(paste0("Could not find training points dataset: '", trainingPointsFile, "'\n"))
 
   # Load reference raster ------------------------------------------------------
-  
+
   referenceRaster <- terra::rast(referenceRasterFile)
-  
+
   # Load input variables -------------------------------------------------------
-  
+
+  # NOTE: Polygon rasterization must occur BEFORE aligning rasters. Otherwise
+  # a bug sometimes appears which assigns the reference raster name and
+  # variable type to the rasterized polygon values.
+  # Ex:
+  # working directory:      C:/Work/netmapdata/Mashel
+  # reference raster:       elev_mashel.flt
+  # input rasters:          grad_15.tif, plan_15.tif
+  # input polygon:          lithology.shp
+  # output polygon raster:  non-factor raster with name "elev_mashel"
+
+  # Load input polygons
+  polygonList <- lapply(inputPolygonFiles, function(file) terra::vect(file))
+
+  # Rasterize each polygon
+  polygonRasterList <- list()
+  for (polygon in polygonList) {
+    polygon <- terra::project(polygon, referenceRaster)
+    for (i in seq_along(names(polygon))) {
+      varName <- names(polygon)[i]
+      raster <- terra::rasterize(polygon, referenceRaster, field = varName)
+      polygonRasterList[[i]] <- raster
+    }
+  }
+
   # Load input rasters
   rasterList <- lapply(inputRasterFiles, function(file) terra::rast(file))
-  
+
   # Align rasters with the reference raster
   rasterList <- TerrainWorksUtils::alignRasters(referenceRaster, rasterList)
 
   # Make sure factor rasters are factored correctly (use character level names
   # rather than numeric level names)
-  for (i in seq_len(length(rasterList))) {
+  for (i in seq_along(rasterList)) {
     raster <- rasterList[[i]]
     if (terra::is.factor(raster)) {
       rasterList[[i]] <- TerrainWorksUtils::fixFactorRaster(raster)
     }
   }
-  
-  # Load input polygons
-  polygonList <- lapply(inputPolygonFiles, function(file) terra::vect(file))
-  
-  # Rasterize each polygon
-  i <- length(rasterList) + 1
-  for (polygon in polygonList) {
-    polygon <- terra::project(polygon, referenceRaster)
-    for (varName in names(polygon)) {
-      raster <- terra::rasterize(polygon, referenceRaster, field = varName)
-      rasterList[[i]] <- raster
-      i <- i + 1
-    }
-  }
+
+  rasterList <- c(rasterList, polygonRasterList)
 
   # Record input variable metadata ---------------------------------------------
 
@@ -308,28 +320,15 @@ if (FALSE) {
   tool_exec(
     in_params = list(
       workingDir = "C:/Work/netmapdata/pack_forest",
-      inputRasterFiles = list("geo_unit.tif"),
+      referenceRasterFile = "pf_dem.tif",
+      inputRasterFiles = list("grad_15.tif", "geounit.tif"),
+      inputPolygonFiles = list("lithology.shp"),
       trainingDatasetFile = "trainingPoints.shp",
       classFieldName = "class",
       wetlandClass = "WET",
       nonwetlandClass = "UPL",
-      modelName = "pf_geounit",
+      modelName = "pf_grad15_geounit_lithology",
       calcStats = FALSE
-    ),
-    out_params = list(probRasterName = "prob")
-  )
-
-  # Test in Puyallup region (WORK2)
-  tool_exec(
-    in_params = list(
-      workingDir = "E:/NetmapData/Puyallup",
-      inputRasterFiles = list("grad_15.tif", "dev_300.tif"),
-      trainingDatasetFile = "wetlandPnts.shp",
-      classFieldName = "NEWCLASS",
-      wetlandClass = "WET",
-      nonwetlandClass = "UPL",
-      modelName = "puy_grad15_dev300_geo",
-      calcStats = TRUE
     ),
     out_params = list(probRasterName = "prob")
   )
@@ -346,21 +345,6 @@ if (FALSE) {
       wetlandClass = "WET",
       nonwetlandClass = "UPL",
       modelName = "pf_grad_geounit_lithology",
-      calcStats = FALSE
-    ),
-    out_params = list(probRasterName = "prob")
-  )
-
-  # Test in Pack Forest region with wetland points only in OEvba geounits (BIGLAPTOP)
-  tool_exec(
-    in_params = list(
-      workingDir = "C:/Work/netmapdata/pack_forest",
-      inputRasterFiles = list("geo_unit.tif"),
-      trainingDatasetFile = "GeoUnitTestPoints.shp",
-      classFieldName = "Class",
-      wetlandClass = "WET",
-      nonwetlandClass = "UPL",
-      modelName = "pf_geounit",
       calcStats = FALSE
     ),
     out_params = list(probRasterName = "prob")
