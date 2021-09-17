@@ -27,15 +27,17 @@ tool_exec <- function(in_params, out_params) {
 
   # Set input/output parameters ------------------------------------------------
 
-  workingDir <- in_params[[1]]       # Working directory where model files can be found and output files will be saved in
-  modelFile <- in_params[[2]]        # Filename of the model
-  inputRasterFiles <- in_params[[3]] # List of input raster filenames
-  testPointsFile <- in_params[[4]]   # Filename of point feature classified by wetland type
-  classFieldName <- in_params[[5]]   # Name of the class field in the test dataset
-  wetlandClass <- in_params[[6]]     # Class name for wetlands
-  nonwetlandClass <- in_params[[7]]  # Class name for non-wetlands
-  calcStats <- in_params[[8]]
-  probRasterName <- out_params[[1]]
+  workingDir <- in_params[[1]]          # Working directory where model files can be found and output files will be saved in
+  modelFile <- in_params[[2]]           # Filename of the model
+  referenceRasterFile <- in_params[[3]] # Raster to use as a grid reference
+  inputRasterFiles <- in_params[[4]]    # List of input raster filenames
+  inputPolygonFiles <- in_params[[5]]   # List of input polygon filenames
+  testPointsFile <- in_params[[6]]      # Filename of point feature classified by wetland type
+  classFieldName <- in_params[[7]]      # Name of the class field in the test dataset
+  wetlandClass <- in_params[[8]]        # Class name for wetlands
+  nonwetlandClass <- in_params[[9]]     # Class name for non-wetlands
+  calcStats <- in_params[[10]]           # Whether or not to calculate ROC statistics for the built model
+  probRasterName <- out_params[[1]]     # Filename of the generated wetland probability raster
 
   # Setup ----------------------------------------------------------------------
 
@@ -51,13 +53,17 @@ tool_exec <- function(in_params, out_params) {
 
   # Validate parameters --------------------------------------------------------
 
+  # Make sure reference raster file exists
+  if (!file.exists(referenceRasterFile))
+    logAndStop(paste0("Could not find reference raster: '", referenceRasterFile, "'"))
+
   # Make sure model file exists
   if (!file.exists(modelFile))
     logAndStop(paste0("Could not find model file: '", modelFile, "'\n"))
 
-  # Make sure at least one input raster was given
-  if (length(inputRasterFiles) == 0)
-    logAndStop("Must provide at least one input raster\n")
+  # Make sure at least one input raster or polygon was given
+  if (length(inputRasterFiles) == 0 && length(inputPolygonFiles) == 0)
+    logAndStop("Must provide at least one input raster or polygon\n")
 
   # Make sure all input raster files exist
   lapply(inputRasterFiles, function(inputRasterFile) {
@@ -77,18 +83,53 @@ tool_exec <- function(in_params, out_params) {
 
   cat(paste0("Loaded model: ", modelFile, "\n"), file = logFilename, append = TRUE)
 
+  # Load reference raster ------------------------------------------------------
+
+  referenceRaster <- terra::rast(referenceRasterFile)
+
   # Load input variables -------------------------------------------------------
+
+  # NOTE: Polygon rasterization must occur BEFORE aligning rasters. Otherwise
+  # a bug sometimes appears which assigns the reference raster name and
+  # variable type to the rasterized polygon values.
+  # Ex:
+  # working directory:      C:/Work/netmapdata/Mashel
+  # reference raster:       elev_mashel.flt
+  # input rasters:          grad_15.tif, plan_15.tif
+  # input polygon:          lithology.shp
+  # output polygon raster:  non-factor raster with name "elev_mashel"
+
+  # Load input polygons
+  polygonList <- lapply(inputPolygonFiles, function(file) terra::vect(file))
+
+  # Rasterize each polygon
+  polygonRasterList <- list()
+  for (polygon in polygonList) {
+    polygon <- terra::project(polygon, referenceRaster)
+    for (i in seq_along(names(polygon))) {
+      varName <- names(polygon)[i]
+      raster <- terra::rasterize(polygon, referenceRaster, field = varName)
+      polygonRasterList[[i]] <- raster
+    }
+  }
 
   # Load rasters
   rasterList <- lapply(inputRasterFiles, function(file) terra::rast(file))
 
+  # Align rasters with the reference raster
+  rasterList <- TerrainWorksUtils::alignRasters(referenceRaster, rasterList)
+
+  # Add rasterized polygons to raster list
+  rasterList <- c(polygonRasterList, rasterList)
+
   # Make sure factor rasters are factored correctly
-  for (i in seq_len(length(rasterList))) {
+  for (i in seq_along(rasterList)) {
     raster <- rasterList[[i]]
     if (terra::is.factor(raster)) {
-      fixedFactorRaster <- TerrainWorksUtils::fixFactorRaster(raster)
-      expectedCats <- modelInfo$inputVars[[names(fixedFactorRaster)]]$cats
-      rasterList[[i]] <- TerrainWorksUtils::applyCats(fixedFactorRaster, expectedCats)
+      if (ncol(terra::cats(raster)[[1]]) > 2)
+        raster <- TerrainWorksUtils::fixFactorRaster(raster)
+      expectedCats <- modelInfo$inputVars[[names(raster)]]$cats
+      rasterList[[i]] <- TerrainWorksUtils::applyCats(raster, expectedCats)
     }
   }
 
@@ -204,14 +245,11 @@ tool_exec <- function(in_params, out_params) {
 
   if (!is.null(probRasterName) && !is.na(probRasterName)) {
 
-    # Align input rasters
-    alignedRasters <- TerrainWorksUtils::alignRasters(rasterList[[1]], rasterList)
-
-    # Combine input rasters into a single multi-layered raster
-    inputRaster <- alignedRasters[[1]]
-    if (length(alignedRasters) > 1) {
-      for (i in 2:length(alignedRasters)) {
-        inputRaster <- c(inputRaster, alignedRasters[[i]])
+    # Combine individual input rasters into a single multi-layered raster
+    inputRaster <- rasterList[[1]]
+    if (length(rasterList) > 1) {
+      for (i in 2:length(rasterList)) {
+        inputRaster <- c(inputRaster, rasterList[[i]])
       }
     }
 
@@ -244,12 +282,14 @@ tool_exec <- function(in_params, out_params) {
 # Tests
 if (FALSE) {
 
-  # Test Puyallup model in Mashel region (BIGLAPTOP)
+  # Test Pack Forest model in Mashel region (BIGLAPTOP)
   tool_exec(
     in_params = list(
       workingDir = "C:/Work/netmapdata/Mashel",
-      modelFile = "pf_grad15_geounit.RFmodel",
-      inputRasterFiles = list("grad_15.tif", "geo_unit.tif"),
+      modelFile = "C:/Work/netmapdata/pack_forest/pf_grad15_geounit_lithology.RFmodel",
+      referenceRaster = "elev_mashel.flt",
+      inputRasterFiles = list("grad_15.tif", "geounit_projected.tif"),
+      inputPolygonFiles = list("lithology.shp"),
       testPointsFile = "wetlandPoints.shp",
       classFieldName = "NEWCLASS",
       wetlandClass = "WET",
@@ -259,60 +299,21 @@ if (FALSE) {
     out_params = list(probRasterName = "prob")
   )
 
-  # Test Puyallup model in Mashel region (WORK2)
+  # Test Pack Forest model in Pack Forest region (BIGLAPTOP)
   tool_exec(
     in_params = list(
-      workingDir = "E:/NetmapData/Mashel",
-      modelFile = "puy_grad15_dev300_geo.RFmodel",
-      inputRasterFiles = list("grad_15.tif", "dev_300.tif"),
-      testPointsFile = "mashelPoints.shp",
-      classFieldName = "NEWCLASS",
-      wetlandClass = "WET",
-      nonwetlandClass = "UPL",
-      calcStats = TRUE
-    ),
-    out_params = list(probRasterName = NULL)
-  )
-
-  # Test Pack Forest model in Mashel region (WORK2)
-  tool_exec(
-    in_params = list(
-      workingDir = "E:/NetmapData/Mashel",
-      modelFile = "pf_grad15_plan15_litho.RFmodel",
+      workingDir = "C:/Work/netmapdata/pack_forest",
+      modelFile = "pf_grad15_geounit_lithology.RFmodel",
+      referenceRaster = "pf_dem.tif",
       inputRasterFiles = list("grad_15.tif", "plan_15.tif"),
-      testPointsFile = "mashelPoints.shp",
-      classFieldName = "NEWCLASS",
-      wetlandClass = "WET",
-      nonwetlandClass = "UPL",
-      calcStats = TRUE
-    ),
-    out_params = list(probRasterName = NULL)
-  )
-
-
-
-
-
-
-
-
-
-
-
-  # Test Pack Forest factor raster model in Pack Forest region (BIGLAPTOP)
-  tool_exec(
-    in_params = list(
-      workingDir = "C:/Work/netmapdata/Mashel",
-      modelFile = "C:/Work/netmapdata/pack_forest/pf_geounit.RFmodel",
-      inputRasterFiles = list("C:/Work/netmapdata/Mashel/geo_unit.tif"),
-      testPointsFile = "C:/Work/netmapdata/Mashel/wetlandPoints.shp",
-      classFieldName = "NEWCLASS",
+      inputPolygonFiles = list("lithology.shp"),
+      testPointsFile = "trainingPoints.shp",
+      classFieldName = "class",
       wetlandClass = "WET",
       nonwetlandClass = "UPL",
       calcStats = FALSE
     ),
     out_params = list(probRasterName = "prob")
   )
-
 
 }
