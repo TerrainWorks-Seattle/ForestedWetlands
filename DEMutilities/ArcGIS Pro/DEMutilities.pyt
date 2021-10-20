@@ -27,7 +27,7 @@ class Toolbox(object):
         self.alias = "DEMutil"
 
         # List of tool classes associated with this toolbox
-        self.tools = [SurfaceMetrics, TopographicWetnessIndex]
+        self.tools = [SurfaceMetrics, TopographicWetnessIndex, PartialContributingArea]
 
 class SurfaceMetrics(object):
     def __init__(self):
@@ -512,6 +512,134 @@ class TopographicWetnessIndex(object):
         TWI = sa.Ln(sa.Divide(accpath, gradpath))
         out_path = descDEM.path + "\\twi_" + length + ".tif"
         TWI.save(out_path)
+        return
+
+
+class PartialContributingArea(object):
+    def __init__(self):
+        """"------------------------------------------------------------------------------------------------
+        Tool Name: Partial Contributing Area
+        Version: 1.0.0, python 3.6.6, ArcGIS Pro
+        Author: Dan Miller, 2021
+        Required arguments:
+            
+        Optional Arguments:
+            
+        Description: 
+        -------------------------------------------------------------------------------------------------"""
+        self.label = "Partial Contributing Area"
+        self.description = "Calculate partial contributing area"
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        param0 = arcpy.Parameter(
+            name = "demFile",
+            displayName = "DEM",
+            datatype = "DERasterDataset",
+            parameterType = "Required",
+            direction = "Input")
+
+        param1 = arcpy.Parameter(
+            name = "lengthScale",
+            displayName = "Length scale (m)",
+            datatype = "Double",
+            parameterType = "Required",
+            direction = "Input")
+
+        param2 = arcpy.Parameter(
+            name = 'duration',
+            displayName = 'Duration (hrs)',
+            datatype = 'Double',
+            parameterType = 'Required',
+            direction = 'Input')
+
+        param3 = arcpy.Parameter(
+            name = 'conductivity',
+            displayName = 'Conductivity (m/hr)',
+            datatype = 'Double',
+            parameterType = 'Required',
+            direction = 'Input')
+
+        param4 = arcpy.Parameter(
+            name = 'scratchDir',
+            displayName = 'Scratch directory',
+            datatype = 'DEFolder',
+            parameterType = 'Required',
+            direction = 'Input')
+
+        param5 = arcpy.Parameter(
+            name = 'outputRasterFile',
+            displayName = 'Output raster',
+            datatype = 'DEFile',
+            parameterType = 'Required',
+            direction = 'Output')
+
+        param6 = arcpy.Parameter(
+            name = 'executableDir',
+            displayName = 'Path to executable',
+            datatype = 'DEFolder',
+            parameterType = 'Required',
+            direction = 'Input')
+        
+        params = [param0, param1, param2, param3, param4, param5, param6]
+
+        return params
+
+    def isLicensed(self):
+        return True
+
+    def updateParameters(self, parameters):
+        return
+
+    def updateMessages(self, parameters):
+        return
+
+    def execute(self, parameters, messages):
+        demFile = parameters[0].valueAsText
+        lengthScale = parameters[1].valueAsText
+        duration = parameters[2].value
+        conductivity = parameters[3].value
+        outputRasterFile = parameters[5].valueAsText
+        executableDir = parameters[6].valueAsText
+
+        demDesc = arcpy.Describe(parameters[0].value)
+        printDEMInfo(demDesc, messages)
+
+        # Format the scratch directory path
+        if parameters[4].value:
+            scratchDir = parameters[4].valueAsText.strip(" ")
+        else:
+            scratchDir = demDesc.path
+        if not scratchDir.endswith("\\"):
+            scratchDir = scratchDir + "\\"
+        messages.addMessage("Scratch directory: " + scratchDir)
+
+        # Convert the length scale to DEM units
+        lengthScale = convertLength(lengthScale, demDesc, messages)
+
+        # Create input file
+        inputFilePath = str(scratchDir) + "input_partial.txt"
+        inputFile = open(inputFilePath, 'w')
+        inputFile.write("# Input file for Partial\n")
+        if demFile.index(".flt") > 1:
+            inputFile.write("DEM: " + demFile[:-4] + "\n")
+        else:
+            inputFile.write("DEM: " + demFile + "\n")
+        inputFile.write("LENGTH SCALE: " + str(lengthScale) + "\n")
+        inputFile.write("SCRATCH DIRECTORY: " + scratchDir + "\n")
+        inputFile.write("DURATION: " + str(duration) + "\n")
+        inputFile.write("CONDUCTIVITY: " + str(conductivity) + "\n")
+        inputFile.write("OUTPUT RASTER: " + outputRasterFile)
+        inputFile.close()
+
+        # Run executable with input file
+        command = executableDir + ("" if executableDir.endswith("\\") else "\\") + "partial"
+        try:
+            subprocess.run([command, inputFilePath])
+        except OSError:
+            messages.addErrorMessage("Partial executable failed")
+            raise
+
         return
 
 #############################################################################
