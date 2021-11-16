@@ -179,6 +179,9 @@ tool_exec <- function(in_params, out_params) {
   # Remove training data that aren't classified with the given
   # wetland/non-wetland class names
   trainingDf <- trainingDf[correctlyLabeledPointIndices,]
+  
+  # Remove unused class levels 
+  trainingDf$class <- droplevels(trainingDf$class)
 
   cat("Ground-truth classifications:\n", file = logFilename, append = TRUE)
   capture.output(summary(trainingDf$class), file = logFilename, append = TRUE)
