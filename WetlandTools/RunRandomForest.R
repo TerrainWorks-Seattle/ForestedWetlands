@@ -157,6 +157,9 @@ tool_exec <- function(in_params, out_params) {
       testDf[[varName]] <- factor(testDf[[varName]], levels = modelInfo$inputVars[[varName]]$levels)
     }
   }
+  
+  # Remove points with NA values
+  testDf <- na.omit(testDf)
 
   # Make sure there are at least some points classified with the given
   # wetland/non-wetland class names
@@ -168,9 +171,9 @@ tool_exec <- function(in_params, out_params) {
 
   # Remove points that aren't labeled wetland/non-wetland
   testDf <- testDf[correctlyLabeledPointIndices,]
-
-  # Remove points with NA values
-  testDf <- na.omit(testDf)
+  
+  # Remove unused class levels 
+  testDf$class <- droplevels(testDf$class)
 
   cat("Ground-truth classifications:\n", file = logFilename, append = TRUE)
   capture.output(summary(testDf$class), file = logFilename, append = TRUE)
