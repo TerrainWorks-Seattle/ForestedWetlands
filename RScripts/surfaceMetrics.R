@@ -1,12 +1,13 @@
 # 1. parse inputs
 wd <- getwd()
 if ( grepl("ForestedWetlands$", wd) ) {
-  configDir <- "RScripts"
+  rscriptDir <- normalizePath("RScripts")
 } else if ( grepl("RScripts$", wd)) {
-  configDir <- "."
+  rscriptDir <- normalizePath(".")
 }
 
-config <- yaml::read_yaml(file.path(configDir, "surfaceMetrics.config"))
+source(file.path(rscriptDir, "helpers.R"))
+config <- yaml::read_yaml(file.path(rscriptDir, "surfaceMetrics.config"))
 
 # Check inputs
 
@@ -16,7 +17,8 @@ if (!setequal(names(config),
                 "executable_path", 
                 "length_scale", 
                 "metrics", 
-                "resample"))) {
+                "sample",
+                "output_suffix"))) {
   stop("Invalid config")
 }
 if (!all(names(config$metrics) %in% c("grad", 
@@ -25,67 +27,36 @@ if (!all(names(config$metrics) %in% c("grad",
                                       "dev"))) {
   stop("Invalid surface metrics specified")
 }
+
+if (!dir.exists(config$executable_path)) {
+  stop("could not find ", config$executable_path)
+}
+executable_path <- normalizePath(config$executable_path)
+
+for (metric in names(config$metrics)) {
+  if (!isTRUE(config$metrics[[metric]])) {
+    config$metrics[[metric]] <- NULL
+  }
+}
  
-if (!dir.exists(config$scratch_folder)) {
-  stop("invalid scratch folder: ", config$scratch_folder)
-}
-if (!is.numeric(config$length_scale)) {
-  stop("length_scale must be numeric")
-}
-
-# Create input file for executable
-command_path <- file.path(
-  config$executable_path, 
-  "makegrids")
-
-inputFilePath <- file.path(
-  config$scratch_folder, 
-  "input_makeGrids.txt"
+inputFile_path <- normalizePath(file.path(config$scratch_folder, "input_makeGrids.txt"))
+# Write input file
+write_input_file_MakeGrids(
+  DEM_path = config$DEM_path, 
+  length_scale = config$length_scale, 
+  scratch_folder = config$scratch_folder, 
+  grad = !is.null(config$metrics$grad), 
+  plan = !is.null(config$metrics$plan), 
+  prof = !is.null(config$metrics$prof), 
+  bcon = !is.null(config$metrics$bcon), 
+  filename = inputFile_path,
+  output_file_extension = config$output_suffix
 )
 
-write_input <- function(..., 
-                        append = TRUE) {
-  cat(..., "\n", 
-      file = inputFilePath, 
-      sep = "", 
-      append = append)
-}
-write_input("# Input file for makeGrids\n", 
-            "# Creating by surfaceMetrics.R\n",
-            "# On ", as.character(Sys.time()), 
-            append = FALSE)
-
-
-write_input("DEM: ", normalizePath(config$DEM_path))
-write_input("SCRATCH DIRECTORY: ", normalizePath(config$scratch_folder))
-write_input("LENGTH SCALE: ", config$length_scale)
-
-if ("grad" %in% names(config$metrics)) {
-  if (config$metrics$grad) {
-    write_input("GRID: GRADIENT, OUTPUT FILE = ", 
-                paste0("grad_", config$length_scale))
-  }
-}
-
-if ("plan" %in% names(config$metrics)) {
-  if (config$metrics$plan) {
-    write_input("GRID: PLAN CURVATURE, OUTPUT FILE = ", 
-                paste0("plan_", config$length_scale))
-  }
-}
-
-if ("prof" %in% names(config$metrics)) {
-  if (config$metrics$prof) {
-    write_input("GRID: PROFILE CURVATURE, OUTPUT FILE = ", 
-                paste0("prof_", config$length_scale))
-  }
-}
-
-if ("bcon" %in% names(config$metrics)) {
-  if (config$metrics$bcon) {
-    write_input("GRID: BCONTOUR, OUTPUT FILE = ", 
-                paste0("bcon_", config$length_scale))
-  }
-}
-
-
+makeGrids <- paste0(executable_path, "\\MakeGrids.exe")
+command <- paste(makeGrids, inputFile_path, sep = " ")
+# Need wd to be scratch dir because that is where files are written
+setwd(config$scratch_folder)
+output <- system(command, 
+                 wait = TRUE)
+setwd(wd)
