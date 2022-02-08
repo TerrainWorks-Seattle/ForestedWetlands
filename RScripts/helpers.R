@@ -75,3 +75,47 @@ write_input_file_MakeGrids <- function(
     }
   
 }
+
+write_input_file_localRelief <- function(
+  DEM_path, 
+  length_scale, 
+  scratch_folder = getwd(), 
+  resample = 2, 
+  interval = 2,
+  filename = file.path(scratch_folder, "input_localRelief.txt"), 
+  overwrite = TRUE, 
+  output_file_extension = paste0("_", length_scale)
+) {
+  
+  # Normalize paths
+  DEM_path <- normalizePath(DEM_path)
+  scratch_folder <- normalizePath(scratch_folder)
+  
+  # Do not include ".flt" in DEM_path
+  if (grepl("\\.flt$", DEM_path)) {
+    DEM_path <- gsub("\\.flt$", "", DEM_path)
+  }
+  
+  write_input <- function(..., 
+                          append = TRUE) {
+    cat(..., "\n", 
+        file = filename, 
+        sep = "", 
+        append = append)
+  }
+  
+  write_input("# Input file for LocalRelief\n", 
+              "# Creating by surfaceMetrics.R\n",
+              "# On ", as.character(Sys.time()), 
+              append = FALSE)
+  write_input("DEM: ", DEM_path)
+  write_input("SCRATCH DIRECTORY: ", scratch_folder)
+  
+  radius <- length_scale / 2
+  write_input("RADIUS: ", radius)
+  write_input("DOWN SAMPLE: ", resample)
+  write_input("SAMPLE INTERVAL: ", resample)
+  write_input("OUTPUT DEV RASTER: ", paste0("dev", output_file_extension))
+     
+  
+}
