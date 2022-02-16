@@ -75,6 +75,9 @@ setwd(config$scratch_folder)
 output <- system(command, 
                  wait = TRUE)
 setwd(wd)
+if (output != 0) {
+  warning("Problem calculating partial contributing area: error ", output)
+}
 
 # --- localRelief (DEV) ---
 
@@ -98,6 +101,9 @@ if (!is.null(config$metrics$dev)) {
   output <- system(command, 
                    wait = TRUE)
   setwd(wd)
+  if (output != 0) {
+    warning("Problem calculating partial contributing area: error ", output)
+  }
 }
 
 # --- topographic wetness index ---
@@ -169,10 +175,38 @@ if (!is.null(config$metrics$twi)) {
   output <- system(command, 
                    wait = TRUE)
   setwd(wd)
+  if (output != 0) {
+    warning("Problem calculating partial contributing area: error ", output)
+  }
 }
 
-# --- 
+# ----- Partial Contributing Area ----- #
+# TODO: Need to add Partial.exe to ExecutableFiles.zip
+if (FALSE) {
+  partial_inputFile_path <- 
+    normalizePath(file.path(config$scratch_folder, "input_partial.txt"))
+  
+  write_input_file_Partial(
+    DEM_path = config$DEM_path, 
+    length_scale = config$length_scale, 
+    duration = config$pca_options$hours, 
+    conductivity = config$pca_options$conductivity,
+    scratch_folder = config$scratch_folder, 
+    filename = partial_inputFile_path, 
+    output_file_extension = config$output_suffix
+  )
+  
+  Partial <- paste0(executable_path, "\\Partial.exe")
+  command <- paste(Partial, partial_inputFile_path, sep = " ")
+  setwd(config$scratch_folder)
+  output <- system(command, 
+                   wait = TRUE)
+  setwd(wd)
+  if (output != 0) {
+    warning("Problem calculating partial contributing area: error ", output)
+  }
+}
 
 # TODO: Reformat .flt files as .tif
-# TODO: Add topographic wetness index (BuildGrids.exe)
-# TODO: Add partial contributing area (Partial.exe)
+
+
