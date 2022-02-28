@@ -42,8 +42,6 @@ executable_path <- normalizePath(config$executable_path)
 # TODO: add "overwrite" parameter, and if FALSE, don't re-calculate 
 # existing grids
 # TODO: Convert DEM file type if needed
-# TODO: Convert length
-# TODO: Do smart things with downsampling
 
 for (metric in names(config$metrics)) {
   if (!isTRUE(config$metrics[[metric]])) {
@@ -54,11 +52,20 @@ for (metric in names(config$metrics)) {
 makeGrids_inputFile_path <- 
   normalizePath(file.path(config$scratch_folder, "input_makeGrids.txt"))
 
+# Load libraries
+library(terra)
+
+# Convert input length to raster's units
+
+dem <- terra::rast(paste0(config$DEM_path))
+DEM_units <- terra::linearUnits(dem)
+adjusted_length <- config$length_scale/DEM_units
+
 # --- makeGrids ---
 
 write_input_file_MakeGrids(
   DEM_path = config$DEM_path, 
-  length_scale = config$length_scale, 
+  length_scale = adjusted_length, 
   scratch_folder = config$scratch_folder, 
   grad = !is.null(config$metrics$grad), 
   plan = !is.null(config$metrics$plan), 
@@ -87,7 +94,7 @@ if (!is.null(config$metrics$dev)) {
   
   write_input_file_localRelief(
     DEM_path = config$DEM_path, 
-    length_scale = config$length_scale, 
+    length_scale = adjusted_length, 
     scratch_folder = config$scratch_folder, 
     resample = config$dev_options$resample, 
     interval = config$dev_options$sampleInterval, 
@@ -135,7 +142,7 @@ if (!is.null(config$metrics$twi)) {
     
     write_input_file_MakeGrids(
       DEM_path = config$DEM_path, 
-      length_scale = config$length_scale, 
+      length_scale = adjusted_length, 
       scratch_folder = config$scratch_folder, 
       grad = "grad" %in% missing_metrics, 
       plan = "plan" %in% missing_metrics,  
@@ -159,7 +166,7 @@ if (!is.null(config$metrics$twi)) {
   
   write_input_file_buildGrids(
     DEM_path = config$DEM_path, 
-    length_scale = config$length_scale, 
+    length_scale = adjusted_length, 
     scratch_folder = config$scratch_folder, 
     grad_path = grad_path, 
     plan_path = plan_path, 
