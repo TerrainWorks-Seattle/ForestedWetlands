@@ -5,7 +5,7 @@ tool_exec <- function(in_params, out_params) {
   if (!requireNamespace("devtools", quietly = TRUE))
     install.packages("devtools", quiet = TRUE)
   if (!requireNamespace("TerrainWorksUtils", quietly = TRUE))
-    devtools::install_github("tabrasel/TerrainWorksUtils")
+    devtools::install_github("TerrainWorks-Seattle/TerrainWorksUtils", quiet = TRUE)
   if (!requireNamespace("randomForest", quietly = TRUE))
     install.packages("randomForest", quiet = TRUE)
   if (!requireNamespace("ROCR", quietly = TRUE))
@@ -179,8 +179,8 @@ tool_exec <- function(in_params, out_params) {
   # Remove training data that aren't classified with the given
   # wetland/non-wetland class names
   trainingDf <- trainingDf[correctlyLabeledPointIndices,]
-  
-  # Remove unused class levels 
+
+  # Remove unused class levels
   trainingDf$class <- droplevels(trainingDf$class)
 
   cat("Ground-truth classifications:\n", file = logFilename, append = TRUE)
@@ -331,7 +331,7 @@ if (FALSE) {
       wetlandClass = "WET",
       nonwetlandClass = "UPL",
       modelName = "pf_grad15_geounit_lithology",
-      
+
     ),
     out_params = list(
       calcStats = FALSE,
@@ -357,7 +357,7 @@ if (FALSE) {
       probRasterName = "prob"
     )
   )
-  
+
   # Test in Mashel region (WORK2)
   tool_exec(
     in_params = list(
