@@ -2,3 +2,9 @@ ExecutableFiles/
 ForestedWetlands.Rproj
 .Rproj.user
 .Rhistory
+
+DEMutilities/__pycache__/
+
+DEMutilities/ArcGIS Pro/.vs/ArcGIS Pro/v16/
+
+DEMutilities/ArcGIS Pro/.vs/
