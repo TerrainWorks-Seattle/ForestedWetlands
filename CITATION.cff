@@ -4,13 +4,13 @@ authors:
 - family-names: "Halabisky"
   given-names: "Meghan"
   orcid: "https://orcid.org/0000-0002-1174-2486"
-- family-names: "Daniel"
-  given-names: "Miller"
+- family-names: "Miller"
+  given-names: "Daniel"
   orcid: "https://orcid.org/0009-0005-1065-706X"
 - family-names: "Lorigan"
   given-names: "Daniel"
-- family-names: "Tate"
-  given-names: "Brasel"
+- family-names: "Brasel"
+  given-names: "Tate"
 title: "ForestedWetlands"
 version: 1.0.0
 doi: 10.5281/zenodo.1234
