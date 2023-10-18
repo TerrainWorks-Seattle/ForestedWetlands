@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Halabisky"
+  given-names: "Meghan"
+  orcid: "https://orcid.org/0000-0002-1174-2486"
+- family-names: "Daniel"
+  given-names: "Miller"
+  orcid: "https://orcid.org/0009-0005-1065-706X"
+- family-names: "Lorigan"
+  given-names: "Daniel"
+- family-names: "Tate"
+  given-names: "Brasel"
+title: "ForestedWetlands"
+version: 1.0.0
+doi: 10.5281/zenodo.1234
+date-released: 2023-10-18
+url: "https://github.com/TerrainWorks-Seattle/ForestedWetlands"
