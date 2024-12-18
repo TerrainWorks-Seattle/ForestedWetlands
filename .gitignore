@@ -1,10 +1,19 @@
 ExecutableFiles/
 ForestedWetlands.Rproj
-.Rproj.user
+
+# History files
 .Rhistory
 
+# Session Data files
+.RData
+.RDataTmp
+
+# RStudio files
+.Rproj.user/
+
+# zip and pdf files
+*.pdf
+*.zip
+
 DEMutilities/__pycache__/
-
-DEMutilities/ArcGIS Pro/.vs/ArcGIS Pro/v16/
-
 DEMutilities/ArcGIS Pro/.vs/
