@@ -1,18 +1,18 @@
 tool_exec <- function(in_params, out_params) {
 
   # Install required packages --------------------------------------------------
-
-  if (!requireNamespace("devtools", quietly = TRUE))
-    install.packages("devtools", quiet = TRUE)
-  if (!requireNamespace("TerrainWorksUtils", quietly = TRUE))
-    devtools::install_github("TerrainWorks-Seattle/TerrainWorksUtils", quiet = TRUE)
-  if (!requireNamespace("randomForest", quietly = TRUE))
-    install.packages("randomForest", quiet = TRUE)
-  if (!requireNamespace("ROCR", quietly = TRUE))
-    install.packages("ROCR", quiet = TRUE)
-  if (!requireNamespace("terra", quietly = TRUE))
-    install.packages("terra", quiet = TRUE)
-
+  
+  if (!requireNamespace("devtools"))
+    install.packages("devtools")
+  if (!requireNamespace("TerrainWorksUtils"))
+    devtools::install_github("TerrainWorks-Seattle/TerrainWorksUtils")
+  if (!requireNamespace("randomForest"))
+    install.packages("randomForest")
+  if (!requireNamespace("ROCR"))
+    install.packages("ROCR")
+  if (!requireNamespace("terra"))
+    install.packages("terra")
+  
   # Define helper functions ----------------------------------------------------
 
   logAndStop <- function(errMsg) {
@@ -21,7 +21,7 @@ tool_exec <- function(in_params, out_params) {
   }
 
   # Set input/output parameters ------------------------------------------------
-
+  
   workingDir <- in_params[[1]]          # Working directory where model files will be stored
   referenceRasterFile <- in_params[[2]] # Raster to use as a grid reference
   inputRasterFiles <- in_params[[3]]    # List of input raster filenames
@@ -316,65 +316,28 @@ tool_exec <- function(in_params, out_params) {
 
 }
 
+
 # Tests
-if (FALSE) {
+#if (FALSE) {
 
   # Test in Pack Forest region (BIGLAPTOP)
-  tool_exec(
-    in_params = list(
-      workingDir = "C:/Work/netmapdata/pack_forest",
-      referenceRasterFile = "pf_dem.tif",
-      inputRasterFiles = list("grad_15.tif", "geounit.tif"),
-      inputPolygonFiles = list("lithology.shp"),
-      trainingDatasetFile = "trainingPoints.shp",
-      classFieldName = "class",
-      wetlandClass = "WET",
-      nonwetlandClass = "UPL",
-      modelName = "pf_grad15_geounit_lithology",
+#  tool_exec(
+#    in_params = list(
+#      workingDir = "C:/Work/netmapdata/pack_forest",
+#      referenceRasterFile = "pf_dem.tif",
+#      inputRasterFiles = list("grad_15.tif", "geounit.tif"),
+#      inputPolygonFiles = list("lithology.shp"),
+#      trainingDatasetFile = "trainingPoints.shp",
+#      classFieldName = "class",
+#      wetlandClass = "WET",
+#      nonwetlandClass = "UPL",
+#      modelName = "pf_grad15_geounit_lithology",
 
-    ),
-    out_params = list(
-      calcStats = FALSE,
-      probRasterName = "prob"
-    )
-  )
+#    ),
+#    out_params = list(
+#      calcStats = FALSE,
+#      probRasterName = "prob"
+#    )
+#  )
 
-  # Test in Pack Forest region (WORK2)
-  tool_exec(
-    in_params = list(
-      workingDir = "C:/Work/Data/pack_forest",
-      referenceRasterFile = "pf_elev.tif",
-      inputRasterFiles = list("grad_15.tif", "geounit.tif"),
-      inputPolygonFiles = list("lithology.shp"),
-      trainingDatasetFile = "training_points.shp",
-      classFieldName = "class",
-      wetlandClass = "WET",
-      nonwetlandClass = "UPL",
-      modelName = "pf_grad_geounit_lithology"
-    ),
-    out_params = list(
-      calcStats = FALSE,
-      probRasterName = "prob"
-    )
-  )
-
-  # Test in Mashel region (WORK2)
-  tool_exec(
-    in_params = list(
-      workingDir = "E:/NetmapData/Mashel",
-      referenceRasterFile = "elev_mashel.flt",
-      inputRasterFiles = list("grad_15.tif", "geounit.tif"),
-      inputPolygonFiles = list("lithology.shp"),
-      trainingDatasetFile = "training_points.shp",
-      classFieldName = "class",
-      wetlandClass = "WET",
-      nonwetlandClass = "UPL",
-      modelName = "pf_grad15_geounit_lithology"
-    ),
-    out_params = list(
-      calcStats = FALSE,
-      probRasterName = "prob"
-    )
-  )
-
-}
+#}
