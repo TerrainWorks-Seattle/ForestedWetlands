@@ -1,5 +1,8 @@
 tool_exec <- function(in_params, out_params) {
   
+  if (!requireNamespace("terra", quietly = TRUE))
+    install.packages("terra", quiet = TRUE)
+  
   # Set input/output parameters ------------------------------------------------
   
   workingDir <- in_params[[1]]           # Working directory where files will be read from and written to
