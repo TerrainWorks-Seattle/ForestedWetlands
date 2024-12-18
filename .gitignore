@@ -15,5 +15,6 @@ ForestedWetlands.Rproj
 *.pdf
 *.zip
 
+WetlandTools/test.R
 DEMutilities/__pycache__/
 DEMutilities/ArcGIS Pro/.vs/
