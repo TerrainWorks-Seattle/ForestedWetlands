@@ -6,7 +6,7 @@ Here you'll find resources for building and applying statistical models for iden
 - test the model by applying it to new data sets,
 - use the model to predict wetland presence in other locations. 
 
-These tools and the methods they use were developed by Dan Miller at [TerrainWorks](http://www.terrainworks.com) and Meghan Halabisky at the University of Washington [Remote Sensing and Geospatial Analysis Lab](https://sites.uw.edu/rsgal/) as part of a wetland mapping project funded by the Cooperative Monitoring, Evaluation, and Research (CMER) Committee of the Washington Forest Practices Board and overseen by the Wetland Scientific Advisory Group (WetSAG). 
+These tools and the methods they use were developed by Dan Miller at [TerrainWorks](http://www.terrainworks.com) and Meghan Halabisky at the University of Washington [Remote Sensing and Geospatial Analysis Lab](https://sites.uw.edu/rsgal/) as part of a wetland mapping project funded by the Cooperative Monitoring, Evaluation, and Research (CMER) Committee of the Washington Forest Practices Board and overseen by the Wetland Scientific Advisory Group (WetSAG). The methods are described in [Halabisky et al, 2023](https://doi.org/10.5194/hess-27-3687-2023).
 
 To use these tools with ArcGIS Pro, click on the download button to save the contents of this repository to your hard drive. 
 
