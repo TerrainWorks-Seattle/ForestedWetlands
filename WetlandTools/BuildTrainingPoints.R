@@ -2,6 +2,8 @@ tool_exec <- function(in_params, out_params) {
   
   if (!requireNamespace("terra", quietly = TRUE))
     install.packages("terra", quiet = TRUE)
+  if (!requireNamespace("stringr", quietly = TRUE))
+    install.packages("stringr", quiet = TRUE)
   
   # Set input/output parameters ------------------------------------------------
   
@@ -44,6 +46,23 @@ tool_exec <- function(in_params, out_params) {
     return(coords)
   }
   
+  checkFeature <- function(filename) {
+    tryCatch(
+      {
+        result = arc.open(filename)
+        return(result)
+      },
+      error = function(e) {
+        logAndStop(paste0("Could not find '", filename, "'"))
+      },
+      warning = function(w) {
+        message('Warning')
+        print(w)
+        return(NA)
+      }
+    )
+  }
+  
   # Validate parameters --------------------------------------------------------
   
   if (!file.exists(workingDir))
@@ -51,11 +70,9 @@ tool_exec <- function(in_params, out_params) {
   
   setwd(workingDir)
   
-  if (!file.exists(regionPolyFile))
-    stop("Could not find region shape file: '", regionPolyFile, "'\n")
+  checkFeature(regionPolyFile)
   
-  if (!file.exists(wetlandPolysFile))
-    stop("Could not find wetland shape file: '", wetlandPolysFile, "'\n")
+  checkFeature(wetlandPolysFile)
   
   if (!(is.numeric(wetlandSampleRate) && length(wetlandSampleRate) == 1))
     stop("Wetland sample rate must be a single numeric value")
@@ -66,7 +83,14 @@ tool_exec <- function(in_params, out_params) {
   # Prepare the region ---------------------------------------------------------
   
   # Load region polygon
-  regionPoly <- terra::vect(regionPolyFile)
+  if (stringr::str_detect(regionPolyFile, ".gdb")) {
+    where <- stringr::str_locate(regionPolyFile, ".gdb")
+    infile <- stringr::str_sub(regionPolyFile, 1, where[2])
+    inlayer <- stringr::str_sub(regionPolyFile, where[2]+2, 10000)
+    regionPoly <- terra:: vect(infile, layer = inlayer)
+  } else {
+    regionPoly <- terra::vect(regionPolyFile)
+  }  
   
   #terra::plot(regionPoly)
   
@@ -78,7 +102,14 @@ tool_exec <- function(in_params, out_params) {
   # Sample wetlands ------------------------------------------------------------
   
   # Load wetland polygons
-  wetlandPolys <- terra::vect(wetlandPolysFile)
+  if (stringr::str_detect(wetlandPolysFile, ".gdb")) {
+    where <- stringr::str_locate(wetlandPolysFile, ".gdb")
+    infile <- stringr::str_sub(wetlandPolysFile, 1, where[2])
+    inlayer <- stringr::str_sub(wetlandPolysFile, where[2]+2, 10000)
+    wetlandPolys <- terra:: vect(infile, layer = inlayer)
+  } else {
+    wetlandPolys <- terra::vect(wetlandPolysFile)
+  } 
   
   # Filter out undesired wetland types
   wetlandTypes <- c()

@@ -5,13 +5,15 @@ tool_exec <- function(in_params, out_params) {
   if (!requireNamespace("devtools", quietly = TRUE))
     install.packages("devtools", quiet = TRUE)
   if (!requireNamespace("TerrainWorksUtils", quietly = TRUE))
-    devtools::install_github("tabrasel/TerrainWorksUtils")
+    devtools::install_github("TerrainWorks-Seattle/TerrainWorksUtils", quietly = TRUE)
   if (!requireNamespace("randomForest", quietly = TRUE))
     install.packages("randomForest", quiet = TRUE)
   if (!requireNamespace("ROCR", quietly = TRUE))
     install.packages("ROCR", quiet = TRUE)
   if (!requireNamespace("terra", quietly = TRUE))
     install.packages("terra", quiet = TRUE)
+  if (!requireNamespace("stringr", quietly = TRUE))
+    install.packages("stringr", quiet = TRUE)
 
   # Define helper functions ----------------------------------------------------
 
@@ -23,6 +25,23 @@ tool_exec <- function(in_params, out_params) {
   logAndStop <- function(errMsg) {
     cat(errMsg, file = logFilename, append = TRUE)
     stop(errMsg)
+  }
+  
+  checkFeature <- function(filename) {
+    tryCatch(
+      {
+        result = arc.open(filename)
+        return(result)
+      },
+      error = function(e) {
+        logAndStop(paste0("Could not find '", filename, "'"))
+      },
+      warning = function(w) {
+        message('Warning')
+        print(w)
+        return(NA)
+      }
+    )
   }
 
   # Set input/output parameters ------------------------------------------------
@@ -54,8 +73,7 @@ tool_exec <- function(in_params, out_params) {
   # Validate parameters --------------------------------------------------------
 
   # Make sure reference raster file exists
-  if (!file.exists(referenceRasterFile))
-    logAndStop(paste0("Could not find reference raster: '", referenceRasterFile, "'"))
+  checkFeature(referenceRasterFile)
 
   # Make sure model file exists
   if (!file.exists(modelFile))
@@ -66,14 +84,12 @@ tool_exec <- function(in_params, out_params) {
     logAndStop("Must provide at least one input raster or polygon\n")
 
   # Make sure all input raster files exist
-  lapply(inputRasterFiles, function(inputRasterFile) {
-    if (!file.exists(inputRasterFile))
-      logAndStop(paste0("Could not find input raster: '", inputRasterFile, "'\n"))
+  lapply(inputRasterFiles, function(file) {
+    checkFeature(file)
   })
 
   # Make sure test points file exists
-  if (!file.exists(testPointsFile))
-    logAndStop(paste0("Could not find test points dataset: '", testPointsFile, "'\n"))
+  checkFeature(testPointsFile)
 
   # Load model -----------------------------------------------------------------
 
@@ -85,7 +101,7 @@ tool_exec <- function(in_params, out_params) {
 
   # Load reference raster ------------------------------------------------------
 
-  referenceRaster <- terra::rast(referenceRasterFile)
+  referenceRaster <- terra::rast(arc.raster(arc.open(referenceRasterFile)))
 
   # Load input variables -------------------------------------------------------
 
@@ -100,7 +116,7 @@ tool_exec <- function(in_params, out_params) {
   # output polygon raster:  non-factor raster with name "elev_mashel"
 
   # Load input polygons
-  polygonList <- lapply(inputPolygonFiles, function(file) terra::vect(file))
+  polygonList <- lapply(inputPolygonFiles, function(file) terra::vect(arc.open(file)))
 
   # Rasterize each polygon
   polygonRasterList <- list()
@@ -114,7 +130,7 @@ tool_exec <- function(in_params, out_params) {
   }
 
   # Load rasters
-  rasterList <- lapply(inputRasterFiles, function(file) terra::rast(file))
+  rasterList <- lapply(inputRasterFiles, function(file) terra::rast(arc.raster(arc.open(file))))
 
   # Align rasters with the reference raster
   rasterList <- TerrainWorksUtils::alignRasters(referenceRaster, rasterList)
@@ -124,6 +140,7 @@ tool_exec <- function(in_params, out_params) {
 
   # Make sure factor rasters are factored correctly
   for (i in seq_along(rasterList)) {
+    names(rasterList[[i]]) <- basename(inputRasterFiles[[i]]) # otherwise get Band_1
     raster <- rasterList[[i]]
     if (terra::is.factor(raster)) {
       if (ncol(terra::cats(raster)[[1]]) > 2)
@@ -136,7 +153,14 @@ tool_exec <- function(in_params, out_params) {
   # Build test dataset ---------------------------------------------------------
 
   # Load the test points
-  testPoints <- terra::vect(testPointsFile)
+  if (stringr::str_detect(testPointsFile, ".gdb")) {
+    where <- stringr::str_locate(testPointsFile, ".gdb")
+    infile <- stringr::str_sub(testPointsFile, 1, where[2])
+    inlayer <- stringr::str_sub(testPointsFile, where[2]+2, 10000)
+    testPoints <- terra:: vect(infile, layer = inlayer)
+  } else {
+    testPoints <- terra::vect(testPointsFile)
+  }
 
   # Define the test dataset. This will store all the predictor variables as
   # well as the response variable (wetland/non-wetland class)
@@ -246,7 +270,7 @@ tool_exec <- function(in_params, out_params) {
 
   # Generate probability raster ------------------------------------------------
 
-  if (!is.null(probRasterName) && !is.na(probRasterName)) {
+  if (probRasterName != "None") {
 
     # Combine individual input rasters into a single multi-layered raster
     inputRaster <- rasterList[[1]]
