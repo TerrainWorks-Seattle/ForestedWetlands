@@ -3,17 +3,19 @@ tool_exec <- function(in_params, out_params) {
   # Install required packages --------------------------------------------------
   
   if (!requireNamespace("devtools"))
-    install.packages("devtools")
+    install.packages("devtools", repos = 'https://CRAN.R-project.org')
   if (!requireNamespace("TerrainWorksUtils"))
     devtools::install_github("TerrainWorks-Seattle/TerrainWorksUtils")
   if (!requireNamespace("randomForest"))
-    install.packages("randomForest")
+    install.packages("randomForest", repos = 'https://CRAN.R-project.org')
   if (!requireNamespace("ROCR"))
-    install.packages("ROCR")
+    install.packages("ROCR", repos = 'https://CRAN.R-project.org')
   if (!requireNamespace("terra"))
-    install.packages("terra")
+    install.packages("terra", repos = 'https://CRAN.R-project.org')
   if (!requireNamespace("stringr"))
-    install.packages("stringr")
+    install.packages("stringr", repos = 'https://CRAN.R-project.org')
+  if (!requireNamespace("arcgisbinding"))
+    install.packages("arcgisbinding", repos = 'https://CRAN.R-project.org')
   
   # Define helper functions ----------------------------------------------------
 
@@ -25,7 +27,7 @@ tool_exec <- function(in_params, out_params) {
   checkFeature <- function(filename) {
     tryCatch(
       {
-        result = arc.open(filename)
+        result = arcgisbinding::arc.open(filename)
         return(result)
       },
       error = function(e) {
