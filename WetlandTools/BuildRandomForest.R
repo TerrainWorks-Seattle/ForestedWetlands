@@ -3,15 +3,19 @@ tool_exec <- function(in_params, out_params) {
   # Install required packages --------------------------------------------------
   
   if (!requireNamespace("devtools"))
-    install.packages("devtools")
+    install.packages("devtools", repos = 'https://CRAN.R-project.org')
   if (!requireNamespace("TerrainWorksUtils"))
     devtools::install_github("TerrainWorks-Seattle/TerrainWorksUtils")
   if (!requireNamespace("randomForest"))
-    install.packages("randomForest")
+    install.packages("randomForest", repos = 'https://CRAN.R-project.org')
   if (!requireNamespace("ROCR"))
-    install.packages("ROCR")
+    install.packages("ROCR", repos = 'https://CRAN.R-project.org')
   if (!requireNamespace("terra"))
-    install.packages("terra")
+    install.packages("terra", repos = 'https://CRAN.R-project.org')
+  if (!requireNamespace("stringr"))
+    install.packages("stringr", repos = 'https://CRAN.R-project.org')
+  if (!requireNamespace("arcgisbinding"))
+    install.packages("arcgisbinding", repos = 'https://CRAN.R-project.org')
   
   # Define helper functions ----------------------------------------------------
 
@@ -19,9 +23,25 @@ tool_exec <- function(in_params, out_params) {
     cat(errMsg, file = logFilename, append = TRUE)
     stop(errMsg)
   }
+  
+  checkFeature <- function(filename) {
+    tryCatch(
+      {
+        result = arcgisbinding::arc.open(filename)
+        return(result)
+      },
+      error = function(e) {
+        logAndStop(paste0("Could not find '", filename, "'"))
+      },
+      warning = function(w) {
+        message('Warning')
+        print(w)
+        return(NA)
+      }
+    )
+  }
 
   # Set input/output parameters ------------------------------------------------
-  
   workingDir <- in_params[[1]]          # Working directory where model files will be stored
   referenceRasterFile <- in_params[[2]] # Raster to use as a grid reference
   inputRasterFiles <- in_params[[3]]    # List of input raster filenames
@@ -50,17 +70,17 @@ tool_exec <- function(in_params, out_params) {
   # Validate parameters --------------------------------------------------------
 
   # Make sure reference raster file exists
-  if (!file.exists(referenceRasterFile))
-    logAndStop(paste0("Could not find reference raster: '", referenceRasterFile, "'"))
+
+  checkFeature(referenceRasterFile)
 
   # Make sure at least one input raster or polygon was given
   if (length(inputRasterFiles) == 0 && length(inputPolygonFiles) == 0)
     logAndStop("Must provide at least one input raster or polygon\n")
 
   # Make sure all input raster files exist
+
   lapply(inputRasterFiles, function(file) {
-    if (!file.exists(file))
-      logAndStop(paste0("Could not find input raster: '", file, "'\n"))
+    checkFeature(file)
   })
 
   # Make sure all input polygon files exist
@@ -70,12 +90,13 @@ tool_exec <- function(in_params, out_params) {
   })
 
   # Make sure training points file exists
-  if (!file.exists(trainingPointsFile))
-    logAndStop(paste0("Could not find training points dataset: '", trainingPointsFile, "'\n"))
+#  if (!file.exists(trainingPointsFile))
+#    logAndStop(paste0("Could not find training points dataset: '", trainingPointsFile, "'\n"))
+  checkFeature(trainingPointsFile)
 
   # Load reference raster ------------------------------------------------------
 
-  referenceRaster <- terra::rast(referenceRasterFile)
+  referenceRaster <- terra::rast(arc.raster(arc.open(referenceRasterFile)))
 
   # Load input variables -------------------------------------------------------
 
@@ -90,7 +111,7 @@ tool_exec <- function(in_params, out_params) {
   # output polygon raster:  non-factor raster with name "elev_mashel"
 
   # Load input polygons
-  polygonList <- lapply(inputPolygonFiles, function(file) terra::vect(file))
+  polygonList <- lapply(inputPolygonFiles, function(file) terra::vect(arc.open(file)))
 
   # Rasterize each polygon
   polygonRasterList <- list()
@@ -104,7 +125,7 @@ tool_exec <- function(in_params, out_params) {
   }
 
   # Load input rasters
-  rasterList <- lapply(inputRasterFiles, function(file) terra::rast(file))
+  rasterList <- lapply(inputRasterFiles, function(file) terra::rast(arc.raster(arc.open(file))))
 
   # Align rasters with the reference raster
   rasterList <- TerrainWorksUtils::alignRasters(referenceRaster, rasterList)
@@ -112,6 +133,7 @@ tool_exec <- function(in_params, out_params) {
   # Make sure factor rasters are factored correctly (use character level names
   # rather than numeric level names)
   for (i in seq_along(rasterList)) {
+    names(rasterList[[i]]) <- basename(inputRasterFiles[[i]]) # otherwise get Band_1
     raster <- rasterList[[i]]
     if (terra::is.factor(raster)) {
       rasterList[[i]] <- TerrainWorksUtils::fixFactorRaster(raster)
@@ -143,7 +165,14 @@ tool_exec <- function(in_params, out_params) {
   # Build training dataset -----------------------------------------------------
 
   # Load the training points
-  trainingPoints <- terra::vect(trainingPointsFile)
+  if (stringr::str_detect(trainingPointsFile, ".gdb")) {
+    where <- stringr::str_locate(trainingPointsFile, ".gdb")
+    infile <- stringr::str_sub(trainingPointsFile, 1, where[2])
+    inlayer <- stringr::str_sub(trainingPointsFile, where[2]+2, 10000)
+    trainingPoints <- terra:: vect(infile, layer = inlayer)
+  } else {
+    trainingPoints <- terra::vect(trainingPointsFile)
+  }
 
   # Define the training dataset. This will store all the predictor variables as
   # well as the response class variable
@@ -189,13 +218,15 @@ tool_exec <- function(in_params, out_params) {
   # Build Random Forest model --------------------------------------------------
 
   # Build a model that predicts wetland/non-wetland class from all input variables
+  print("Build the model")
   rfModel <- randomForest::randomForest(
     formula = class ~ .,
     data = trainingDf,
     ntree = 200,
     importance = TRUE
   )
-
+  print("Got the model")
+  
   # Log model information
   capture.output(rfModel, file = logFilename, append = TRUE)
   capture.output(randomForest::importance(rfModel), file = logFilename, append = TRUE)
@@ -280,9 +311,8 @@ tool_exec <- function(in_params, out_params) {
   }
 
   # Generate wetland probability raster ----------------------------------------
-
-  if (!is.null(probRasterName) && !is.na(probRasterName)) {
-
+  if (probRasterName != "None") {
+    print("Building probability raster")
     # Combine individual input rasters into a single multi-layered raster
     inputRaster <- rasterList[[1]]
     if (length(rasterList) > 1) {
