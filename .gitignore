@@ -12,7 +12,6 @@ ForestedWetlands.Rproj
 .Rproj.user/
 
 # zip and pdf files
-*.pdf
 *.zip
 
 WetlandTools/test.R
